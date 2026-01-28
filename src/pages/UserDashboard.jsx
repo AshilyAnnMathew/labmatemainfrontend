@@ -1,13 +1,14 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { 
-  Calendar, 
-  Upload, 
-  FileText, 
-  Download, 
-  MapPin, 
+import {
+  Calendar,
+  Upload,
+  FileText,
+  Download,
+  MapPin,
   HelpCircle,
-  MessageCircle
+  MessageCircle,
+  User
 } from 'lucide-react'
 import DashboardLayout from '../layouts/DashboardLayout'
 import PlaceholderPage from '../components/common/PlaceholderPage'
@@ -16,6 +17,8 @@ import NearbyLabs from '../components/NearbyLabs'
 import BookTests from './BookTests'
 import MyBookings from './MyBookings'
 import UploadPrescription from './UploadPrescription'
+import Profile from './Profile'
+import Support from './Support'
 import ProfileCompletionModal from '../components/ProfileCompletionModal'
 import { useAuth } from '../contexts/AuthContext'
 import { authAPI } from '../services/api'
@@ -33,22 +36,22 @@ const UserDashboard = () => {
     const userAge = currentUser.age
     const userGender = currentUser.gender
     const userDateOfBirth = currentUser.dateOfBirth
-    
+
     // Convert age to number if it's in MongoDB format or string
-    const ageValue = typeof userAge === 'object' && userAge.$numberInt 
-      ? parseInt(userAge.$numberInt) 
-      : typeof userAge === 'string' 
-      ? parseInt(userAge) 
-      : userAge
-    
+    const ageValue = userAge && typeof userAge === 'object' && userAge.$numberInt
+      ? parseInt(userAge.$numberInt)
+      : typeof userAge === 'string'
+        ? parseInt(userAge)
+        : userAge
+
     const hasAge = ageValue !== null && ageValue !== undefined && !isNaN(ageValue) && ageValue > 0
     const hasGender = userGender && userGender.trim() !== ''
     const hasAddress = currentUser.address && currentUser.address.trim() !== ''
-    
+
     // Match backend isProfileComplete logic: age OR dateOfBirth, gender, and address
     const hasAgeOrDateOfBirth = hasAge || (userDateOfBirth && new Date(userDateOfBirth).getTime() > 0)
     const profileComplete = hasAgeOrDateOfBirth && hasGender && hasAddress
-    
+
     return profileComplete
   }, [])
 
@@ -58,11 +61,11 @@ const UserDashboard = () => {
     if (loading || !user) {
       return
     }
-    
+
     // Only refresh user data once per session to avoid infinite loops
     if (!hasRefreshedUser.current) {
       hasRefreshedUser.current = true
-      
+
       // Refresh user data from backend to ensure we have latest profile data
       const refreshUserData = async () => {
         try {
@@ -73,17 +76,17 @@ const UserDashboard = () => {
               'Content-Type': 'application/json'
             }
           })
-          
+
           if (response.ok) {
             const data = await response.json()
             let refreshedUser = null
-            
+
             if (data.success && data.data && data.data.user) {
               refreshedUser = data.data.user
             } else if (data.success && data.user) {
               refreshedUser = data.user
             }
-            
+
             if (refreshedUser) {
               // Only update if the data is actually different to prevent loops
               if (JSON.stringify(refreshedUser) !== JSON.stringify(user)) {
@@ -99,16 +102,16 @@ const UserDashboard = () => {
         }
         return user
       }
-      
+
       refreshUserData().then(currentUser => {
         const profileComplete = checkProfileCompleteness(currentUser)
         setIsProfileComplete(profileComplete)
-        
+
         console.log('Profile completeness check:', {
           currentUser,
           profileComplete
         })
-        
+
         // Show modal only if profile is incomplete
         setShowProfileModal(!profileComplete)
       })
@@ -142,32 +145,37 @@ const UserDashboard = () => {
       icon: Calendar
     },
     {
-      path: 'upload-prescription',
+      path: '/user/dashboard/upload-prescription',
       label: 'Upload Prescription',
       icon: Upload
     },
     {
-      path: 'bookings',
+      path: '/user/dashboard/bookings',
       label: 'My Bookings',
       icon: FileText
     },
     {
-      path: 'reports',
+      path: '/user/dashboard/reports',
       label: 'Download Reports',
       icon: Download
     },
     {
-      path: 'nearby-labs',
+      path: '/user/dashboard/profile',
+      label: 'My Profile',
+      icon: User
+    },
+    {
+      path: '/user/dashboard/nearby-labs',
       label: 'Nearby Labs',
       icon: MapPin
     },
     {
-      path: 'healthbot',
+      path: '/user/dashboard/healthbot',
       label: 'HealthBot',
       icon: MessageCircle
     },
     {
-      path: 'support',
+      path: '/user/dashboard/support',
       label: 'Support',
       icon: HelpCircle
     }
@@ -179,37 +187,13 @@ const UserDashboard = () => {
   // Replaced with real page in ./DownloadReports.jsx
 
 
-  const Support = () => (
-    <PlaceholderPage
-      title="Support & Help"
-      description="Get assistance with your laboratory needs"
-      icon={HelpCircle}
-      features={[
-        {
-          title: "FAQ Section",
-          description: "Find answers to frequently asked questions"
-        },
-        {
-          title: "Live Chat",
-          description: "Chat with our support team for immediate assistance"
-        },
-        {
-          title: "Help Documentation",
-          description: "Comprehensive guides and tutorials for using the platform"
-        },
-        {
-          title: "Contact Support",
-          description: "Get in touch with our support team via phone or email"
-        }
-      ]}
-    />
-  )
+
 
   // HealthBot Component
   const HealthBot = () => {
     // API key constant - fallback for environment variable
     const API_KEY = 'AIzaSyAywhccPmyHxbbK_D5hhM6n7tC8PnX_El0'
-    
+
     const [messages, setMessages] = useState([
       {
         id: 1,
@@ -242,10 +226,10 @@ const UserDashboard = () => {
         const healthKeywords = [
           'health', 'medical', 'doctor', 'test', 'lab', 'laboratory', 'blood', 'urine', 'symptom', 'disease', 'condition', 'medicine', 'drug', 'treatment', 'diagnosis', 'result', 'report', 'checkup', 'examination', 'prescription', 'vitamin', 'supplement', 'exercise', 'diet', 'nutrition', 'wellness', 'fitness', 'pain', 'injury', 'illness', 'covid', 'vaccine', 'immunization', 'prevention', 'screening', 'biomarker', 'cholesterol', 'diabetes', 'blood pressure', 'heart', 'cancer', 'infection', 'allergy', 'asthma', 'mental health', 'stress', 'anxiety', 'depression'
         ]
-        
+
         const userQuestion = inputMessage.toLowerCase()
         const isHealthRelated = healthKeywords.some(keyword => userQuestion.includes(keyword))
-        
+
         if (!isHealthRelated) {
           const redirectMessage = {
             id: Date.now() + 1,
@@ -253,7 +237,7 @@ const UserDashboard = () => {
             isBot: true,
             timestamp: new Date()
           }
-          
+
           setTimeout(() => {
             setMessages(prev => [...prev, redirectMessage])
             setIsTyping(false)
@@ -331,7 +315,7 @@ Remember: Only respond if this is health/medical/laboratory related. If not, pol
           isBot: true,
           timestamp: new Date()
         }
-        
+
         setTimeout(() => {
           setMessages(prev => [...prev, errorMessage])
           setIsTyping(false)
@@ -348,10 +332,10 @@ Remember: Only respond if this is health/medical/laboratory related. If not, pol
     }
 
     const formatTime = (date) => {
-      return date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
       })
     }
 
@@ -378,16 +362,14 @@ Remember: Only respond if this is health/medical/laboratory related. If not, pol
               className={`flex ${message.isBot ? 'justify-start' : 'justify-end'}`}
             >
               <div
-                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                  message.isBot
-                    ? 'bg-white border border-gray-200 shadow-sm'
-                    : 'bg-blue-600 text-white'
-                }`}
+                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${message.isBot
+                  ? 'bg-white border border-gray-200 shadow-sm'
+                  : 'bg-blue-600 text-white'
+                  }`}
               >
                 <p className="text-sm whitespace-pre-wrap">{message.text}</p>
-                <p className={`text-xs mt-1 ${
-                  message.isBot ? 'text-gray-500' : 'text-blue-100'
-                }`}>
+                <p className={`text-xs mt-1 ${message.isBot ? 'text-gray-500' : 'text-blue-100'
+                  }`}>
                   {formatTime(message.timestamp)}
                 </p>
               </div>
@@ -434,7 +416,7 @@ Remember: Only respond if this is health/medical/laboratory related. If not, pol
               )}
             </button>
           </div>
-          
+
           {/* Quick Suggestions */}
           <div className="mt-3 flex flex-wrap gap-2">
             {[
@@ -472,305 +454,7 @@ Remember: Only respond if this is health/medical/laboratory related. If not, pol
     )
   }
 
-  // Profile Component
-  const Profile = () => {
-    const [isEditing, setIsEditing] = useState(false)
-    const [loading, setLoading] = useState(false)
-    const [error, setError] = useState('')
-    const [success, setSuccess] = useState('')
-    const [formData, setFormData] = useState({
-      firstName: user?.firstName || '',
-      lastName: user?.lastName || '',
-      email: user?.email || '',
-      phone: user?.phone || '',
-      age: user?.age || '',
-      gender: user?.gender || '',
-      dateOfBirth: user?.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : '',
-      address: user?.address || '',
-      emergencyContact: user?.emergencyContact || ''
-    })
 
-    const handleInputChange = (e) => {
-      const { name, value } = e.target
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }))
-      
-      // Auto-calculate age from date of birth
-      if (name === 'dateOfBirth' && value) {
-        const today = new Date()
-        const birthDate = new Date(value)
-        let age = today.getFullYear() - birthDate.getFullYear()
-        const monthDiff = today.getMonth() - birthDate.getMonth()
-        
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-          age--
-        }
-        
-        setFormData(prev => ({
-          ...prev,
-          age: age
-        }))
-      }
-    }
-
-    const handleSubmit = async (e) => {
-      e.preventDefault()
-      setLoading(true)
-      setError('')
-      setSuccess('')
-
-      try {
-        const response = await authAPI.updateProfile(formData)
-        
-        if (response.success) {
-          setSuccess('Profile updated successfully!')
-          updateUser(response.data)
-          setIsEditing(false)
-        } else {
-          setError(response.message || 'Failed to update profile')
-        }
-      } catch (error) {
-        console.error('Profile update error:', error)
-        setError(error.message || 'Failed to update profile')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    const handleCancel = () => {
-      setFormData({
-        firstName: user?.firstName || '',
-        lastName: user?.lastName || '',
-        email: user?.email || '',
-        phone: user?.phone || '',
-        age: user?.age || '',
-        gender: user?.gender || '',
-        dateOfBirth: user?.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : '',
-        address: user?.address || '',
-        emergencyContact: user?.emergencyContact || ''
-      })
-      setIsEditing(false)
-      setError('')
-      setSuccess('')
-    }
-
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
-            <p className="text-gray-600">View and update your personal information</p>
-          </div>
-          {!isEditing && (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Edit Profile
-            </button>
-          )}
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
-            {success}
-          </div>
-        )}
-
-        <div className="bg-white shadow rounded-lg">
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Personal Information */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Personal Information</h3>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    First Name
-                  </label>
-                  <input
-                    type="text"
-                    name="firstName"
-                    value={formData.firstName}
-                    onChange={handleInputChange}
-                    disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Last Name
-                  </label>
-                  <input
-                    type="text"
-                    name="lastName"
-                    value={formData.lastName}
-                    onChange={handleInputChange}
-                    disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Profile Details */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Profile Details</h3>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Age
-                  </label>
-                  <input
-                    type="number"
-                    name="age"
-                    value={formData.age}
-                    onChange={handleInputChange}
-                    disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                    min="0"
-                    max="150"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Date of Birth
-                  </label>
-                  <input
-                    type="date"
-                    name="dateOfBirth"
-                    value={formData.dateOfBirth}
-                    onChange={handleInputChange}
-                    disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                    max={new Date().toISOString().split('T')[0]}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Gender
-                  </label>
-                  <select
-                    name="gender"
-                    value={formData.gender}
-                    onChange={handleInputChange}
-                    disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                  >
-                    <option value="">Select Gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                    <option value="prefer_not_to_say">Prefer not to say</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Address
-                  </label>
-                  <textarea
-                    name="address"
-                    value={formData.address}
-                    onChange={handleInputChange}
-                    disabled={!isEditing}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                    placeholder="Enter your address"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Emergency Contact
-                  </label>
-                  <input
-                    type="tel"
-                    name="emergencyContact"
-                    value={formData.emergencyContact}
-                    onChange={handleInputChange}
-                    disabled={!isEditing}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                    placeholder="Emergency contact number"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            {isEditing && (
-              <div className="flex justify-end space-x-4 pt-6 border-t">
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                  disabled={loading}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? (
-                    <div className="flex items-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Saving...
-                    </div>
-                  ) : (
-                    'Save Changes'
-                  )}
-                </button>
-              </div>
-            )}
-          </form>
-        </div>
-      </div>
-    )
-  }
 
   // Show loading state while user data is being loaded
   if (loading) {

@@ -13,10 +13,10 @@ const DownloadReports = () => {
   const [selected, setSelected] = useState(null)
   const [aiAnalysis, setAiAnalysis] = useState({})
   const [analyzing, setAnalyzing] = useState({})
-  
+
   // API key constant - fallback for environment variable
   const API_KEY = 'AIzaSyAywhccPmyHxbbK_D5hhM6n7tC8PnX_El0'
-  
+
   // Initialize Google Generative AI with useMemo to prevent recreation on every render
   const genAI = useMemo(() => new GoogleGenerativeAI(API_KEY), [])
 
@@ -63,7 +63,7 @@ const DownloadReports = () => {
   // Function to list available models (for debugging)
   const listAvailableModels = useCallback(async () => {
     try {
-        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
         headers: {
           'X-goog-api-key': API_KEY
         }
@@ -80,20 +80,20 @@ const DownloadReports = () => {
   const analyzeResultsWithAI = useCallback(async (booking) => {
     try {
       setAnalyzing(prev => ({ ...prev, [booking._id]: true }))
-      
+
       // Debug: List available models
       await listAvailableModels()
-      
+
       // Prepare test results data for AI analysis
       let analysisData = ''
-      
+
       if (booking.testResults && booking.testResults.length > 0) {
         analysisData = 'Test Results:\n'
         booking.testResults.forEach((testResult, index) => {
-          const testName = booking.selectedTests?.find(t => 
+          const testName = booking.selectedTests?.find(t =>
             (t.testId?._id || t.testId) === (testResult.testId?._id || testResult.testId)
           )?.testName || 'Test'
-          
+
           analysisData += `\n${index + 1}. ${testName}:\n`
           testResult.values?.forEach(value => {
             analysisData += `   - ${value.label}: ${value.value} ${value.unit || ''}`
@@ -148,7 +148,7 @@ Please format your response in a clear, structured manner suitable for a patient
         analysis = response.text()
       } catch (libraryError) {
         console.warn('GoogleGenerativeAI library failed, trying direct API call:', libraryError.message)
-        
+
         // Fallback to direct API call matching your curl example
         const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', {
           method: 'POST',
@@ -168,11 +168,11 @@ Please format your response in a clear, structured manner suitable for a patient
             ]
           })
         })
-        
+
         if (!response.ok) {
           throw new Error(`API request failed: ${response.status} ${response.statusText}`)
         }
-        
+
         const data = await response.json()
         analysis = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated'
       }
@@ -186,12 +186,12 @@ Please format your response in a clear, structured manner suitable for a patient
     } catch (error) {
       console.error('AI Analysis error:', error)
       const errorAnalysis = 'Sorry, I encountered an error while analyzing your test results. Please try again later or consult with a healthcare professional.'
-      
+
       setAiAnalysis(prev => ({
         ...prev,
         [booking._id]: errorAnalysis
       }))
-      
+
       return errorAnalysis
     } finally {
       setAnalyzing(prev => ({ ...prev, [booking._id]: false }))
@@ -201,12 +201,12 @@ Please format your response in a clear, structured manner suitable for a patient
   const downloadResultsPdf = useCallback((booking) => {
     try {
       console.log('Starting PDF generation for booking:', booking._id)
-      
+
       const doc = new jsPDF()
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
       let yPosition = 20
-      
+
       console.log('PDF document created successfully, page dimensions:', { pageWidth, pageHeight })
       console.log('Booking data for PDF:', {
         bookingId: booking._id,
@@ -236,18 +236,18 @@ Please format your response in a clear, structured manner suitable for a patient
       // Header Section with Lab Branding
       doc.setFillColor(59, 130, 246) // Blue background
       doc.rect(0, 0, pageWidth, 40, 'F')
-      
+
       // Lab Logo/Name
       doc.setTextColor(255, 255, 255) // White text
       doc.setFontSize(28)
       doc.setFont('helvetica', 'bold')
       doc.text(String(booking.labId?.name || 'LABORATORY'), pageWidth / 2, 25, { align: 'center' })
-      
+
       // Lab tagline
       doc.setFontSize(12)
       doc.setFont('helvetica', 'normal')
       doc.text('Diagnostic Excellence • Trusted Results', pageWidth / 2, 35, { align: 'center' })
-      
+
       // Reset text color
       doc.setTextColor(0, 0, 0)
       yPosition = 50
@@ -255,55 +255,59 @@ Please format your response in a clear, structured manner suitable for a patient
       // Lab Information Box
       drawBox(15, yPosition, pageWidth - 30, 35, [248, 250, 252])
       yPosition += 8
-      
+
       doc.setFontSize(14)
       doc.setFont('helvetica', 'bold')
       doc.text('LABORATORY INFORMATION', 20, yPosition)
       yPosition += 10
-      
+
       const leftColumn = 20
       const rightColumn = pageWidth / 2 + 10
-      
+
       doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')
-      
+
       if (booking.labId?.address) {
-        doc.text(`Address: ${String(booking.labId.address)}`, leftColumn, yPosition)
+        const addr = booking.labId.address
+        const addressStr = typeof addr === 'object'
+          ? `${addr.street}, ${addr.city}, ${addr.state} ${addr.zipCode}`
+          : String(addr)
+        doc.text(`Address: ${addressStr}`, leftColumn, yPosition)
       }
       if (booking.labId?.phone) {
         doc.text(`Phone: ${String(booking.labId.phone)}`, rightColumn, yPosition)
       }
       yPosition += 5
-      
+
       if (booking.labId?.email) {
         doc.text(`Email: ${String(booking.labId.email)}`, leftColumn, yPosition)
       }
       if (booking.labId?.website) {
         doc.text(`Website: ${String(booking.labId.website)}`, rightColumn, yPosition)
       }
-      
+
       yPosition += 20
 
       // Report Header Information
       drawBox(15, yPosition, pageWidth - 30, 25, [249, 250, 251])
       yPosition += 8
-      
+
       doc.setFontSize(16)
       doc.setFont('helvetica', 'bold')
       doc.text('LABORATORY REPORT', pageWidth / 2, yPosition, { align: 'center' })
       yPosition += 10
-      
+
       doc.setFontSize(11)
       doc.setFont('helvetica', 'normal')
       doc.text(`Report ID: ${String(booking._id)}`, leftColumn, yPosition)
-      doc.text(`Generated: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, rightColumn, yPosition, { align: 'right' })
-      
+      doc.text(`Generated: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, pageWidth - 20, yPosition, { align: 'right' })
+
       yPosition += 25
 
       // Patient Information Section - Enhanced with all User.js fields
       drawBox(15, yPosition, pageWidth - 30, 85, [254, 252, 191])
       yPosition += 8
-      
+
       doc.setFontSize(16)
       doc.setFont('helvetica', 'bold')
       doc.text('PATIENT INFORMATION', 20, yPosition)
@@ -317,46 +321,46 @@ Please format your response in a clear, structured manner suitable for a patient
       yPosition += 8
 
       doc.setFont('helvetica', 'normal')
-      
+
       // Personal Details Column
       doc.text(`Full Name: ${String(booking.userId?.firstName || '')} ${String(booking.userId?.lastName || '')}`, leftColumn, yPosition)
       doc.text(`Email: ${String(booking.userId?.email || 'N/A')}`, rightColumn, yPosition)
       yPosition += 6
-      
+
       doc.text(`Age: ${String(booking.userId?.age || 'N/A')} years`, leftColumn, yPosition)
       doc.text(`Phone: ${String(booking.userId?.phone || 'N/A')}`, rightColumn, yPosition)
       yPosition += 6
-      
+
       doc.text(`Gender: ${String(booking.userId?.gender || 'N/A')}`, leftColumn, yPosition)
       doc.text(`Date of Birth: ${booking.userId?.dateOfBirth ? formatDate(booking.userId.dateOfBirth) : 'N/A'}`, rightColumn, yPosition)
       yPosition += 6
-      
+
       // Additional User.js fields
       if (booking.userId?.address) {
         doc.text(`Address: ${String(booking.userId.address)}`, leftColumn, yPosition)
         yPosition += 6
       }
-      
+
       if (booking.userId?.emergencyContact) {
         doc.text(`Emergency Contact: ${String(booking.userId.emergencyContact)}`, leftColumn, yPosition)
         yPosition += 6
       }
-      
+
       // User account information
       doc.text(`Patient ID: ${String(booking.userId?.id || booking.userId?._id || 'N/A')}`, leftColumn, yPosition)
       doc.text(`Account Created: ${booking.userId?.createdAt ? formatDate(booking.userId.createdAt) : 'N/A'}`, rightColumn, yPosition)
       yPosition += 6
-      
+
       if (booking.userId?.lastLogin) {
         doc.text(`Last Login: ${formatDate(booking.userId.lastLogin)}`, leftColumn, yPosition)
       }
-      
+
       yPosition += 20
 
       // Appointment Information Section
       drawBox(15, yPosition, pageWidth - 30, 50, [240, 248, 255])
       yPosition += 8
-      
+
       doc.setFontSize(14)
       doc.setFont('helvetica', 'bold')
       doc.text('APPOINTMENT INFORMATION', 20, yPosition)
@@ -367,235 +371,235 @@ Please format your response in a clear, structured manner suitable for a patient
       doc.text(`Appointment Date: ${formatDate(booking.appointmentDate)}`, leftColumn, yPosition)
       doc.text(`Appointment Time: ${String(booking.appointmentTime || 'N/A')}`, rightColumn, yPosition)
       yPosition += 6
-      
+
       doc.text(`Booking ID: ${String(booking._id)}`, leftColumn, yPosition)
       doc.text(`Payment Status: ${String(booking.paymentStatus || 'N/A')}`, rightColumn, yPosition)
       yPosition += 6
-      
-      doc.text(`Total Amount: ₹${String(booking.totalAmount || 0)}`, leftColumn, yPosition)
+
+      doc.text(`Total Amount: Rs. ${String(booking.totalAmount || 0)}`, leftColumn, yPosition)
       doc.text(`Booking Status: ${String(booking.status || 'N/A')}`, rightColumn, yPosition)
       yPosition += 6
-      
+
       if (booking.paymentMethod) {
         doc.text(`Payment Method: ${String(booking.paymentMethod)}`, leftColumn, yPosition)
       }
       if (booking.notes) {
         doc.text(`Notes: ${String(booking.notes)}`, rightColumn, yPosition)
       }
-      
+
       yPosition += 20
 
-    // Tests Requested Section
-    doc.setFontSize(16)
-    doc.setFont('helvetica', 'bold')
-    doc.text('TESTS REQUESTED', 20, yPosition)
-    yPosition += 12
-
-    // List all requested tests
-    if (booking.selectedTests && booking.selectedTests.length > 0) {
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'normal')
-      booking.selectedTests.forEach((test, index) => {
-        doc.text(`${index + 1}. ${String(test.testName || test.testId?.name || 'Test')}`, leftColumn, yPosition)
-        if (test.testId?.description) {
-          doc.setFontSize(9)
-          doc.text(`   ${String(test.testId.description)}`, leftColumn + 5, yPosition + 4)
-          yPosition += 4
-        }
-        doc.setFontSize(11)
-        yPosition += 6
-      })
-    }
-
-    if (booking.selectedPackages && booking.selectedPackages.length > 0) {
-      yPosition += 5
-      doc.setFontSize(12)
-      doc.setFont('helvetica', 'bold')
-      doc.text('PACKAGES:', leftColumn, yPosition)
-      yPosition += 8
-      
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'normal')
-      booking.selectedPackages.forEach((pkg, index) => {
-        doc.text(`${index + 1}. ${String(pkg.packageName || pkg.packageId?.name || 'Package')}`, leftColumn, yPosition)
-        if (pkg.packageId?.description) {
-          doc.setFontSize(9)
-          doc.text(`   ${String(pkg.packageId.description)}`, leftColumn + 5, yPosition + 4)
-          yPosition += 4
-        }
-        doc.setFontSize(11)
-        yPosition += 6
-      })
-    }
-
-    yPosition += 15
-
-    // Test Results Section
-    if (booking.testResults && booking.testResults.length > 0) {
-      console.log('Processing test results for PDF:', booking.testResults.length, 'results found')
+      // Tests Requested Section
       doc.setFontSize(16)
       doc.setFont('helvetica', 'bold')
-      doc.text('LABORATORY RESULTS', 20, yPosition)
+      doc.text('TESTS REQUESTED', 20, yPosition)
       yPosition += 12
 
-      const testNameById = new Map((booking.selectedTests || []).map(t => [(t.testId?._id || t.testId), t.testName]))
-      
-      ;(booking.testResults || []).forEach((tr, index) => {
-        const testName = testNameById.get(tr.testId?._id || tr.testId) || 'Test'
-        
-        // Check if we need a new page
-        if (yPosition > pageHeight - 80) {
-          doc.addPage()
-          yPosition = 20
-        }
+      // List all requested tests
+      if (booking.selectedTests && booking.selectedTests.length > 0) {
+        doc.setFontSize(11)
+        doc.setFont('helvetica', 'normal')
+        booking.selectedTests.forEach((test, index) => {
+          doc.text(`${index + 1}. ${String(test.testName || test.testId?.name || 'Test')}`, leftColumn, yPosition)
+          if (test.testId?.description) {
+            doc.setFontSize(9)
+            doc.text(`   ${String(test.testId.description)}`, leftColumn + 5, yPosition + 4)
+            yPosition += 4
+          }
+          doc.setFontSize(11)
+          yPosition += 6
+        })
+      }
 
-        // Test name with submission info
+      if (booking.selectedPackages && booking.selectedPackages.length > 0) {
+        yPosition += 5
         doc.setFontSize(12)
         doc.setFont('helvetica', 'bold')
-        doc.text(`${index + 1}. ${String(testName)}`, 20, yPosition)
-        yPosition += 6
-        
-        if (tr.submittedBy) {
-          doc.setFontSize(9)
-          doc.setFont('helvetica', 'italic')
-          doc.text(`Submitted by: ${String(tr.submittedBy)}`, 20, yPosition)
-          yPosition += 4
-        }
-        
-        if (tr.submittedAt) {
-          doc.text(`Submitted on: ${formatDate(tr.submittedAt)}`, 20, yPosition)
-          yPosition += 4
-        }
-        
+        doc.text('PACKAGES:', leftColumn, yPosition)
         yPosition += 8
 
-        // Results table header
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'bold')
-        doc.text('Parameter', 20, yPosition)
-        doc.text('Value', 80, yPosition)
-        doc.text('Unit', 120, yPosition)
-        doc.text('Reference Range', 150, yPosition)
-        yPosition += 5
-
-        // Draw line under header
-        doc.line(20, yPosition, pageWidth - 20, yPosition)
-        yPosition += 5
-
-        // Results
+        doc.setFontSize(11)
         doc.setFont('helvetica', 'normal')
-        ;(tr.values || []).forEach(v => {
-          if (yPosition > pageHeight - 30) {
-            doc.addPage()
-            yPosition = 20
+        booking.selectedPackages.forEach((pkg, index) => {
+          doc.text(`${index + 1}. ${String(pkg.packageName || pkg.packageId?.name || 'Package')}`, leftColumn, yPosition)
+          if (pkg.packageId?.description) {
+            doc.setFontSize(9)
+            doc.text(`   ${String(pkg.packageId.description)}`, leftColumn + 5, yPosition + 4)
+            yPosition += 4
           }
-
-          const value = v.type === 'boolean' ? (v.value ? 'Yes' : 'No') : (v.value ?? '')
-          const unit = v.unit || ''
-          const refRange = v.referenceRange || ''
-          
-          // Check if value is outside reference range (basic validation)
-          const isOutsideRange = refRange && value && v.type === 'number' && !isNaN(value) && !isNaN(refRange.split('-')[0])
-          const textColor = isOutsideRange ? [255, 0, 0] : [0, 0, 0] // Red for abnormal values
-          
-          doc.setTextColor(textColor[0], textColor[1], textColor[2])
-          doc.text(String(v.label || ''), 20, yPosition)
-          doc.text(String(value), 80, yPosition)
-          doc.text(String(unit), 120, yPosition)
-          doc.text(String(refRange), 150, yPosition)
-          
-          // Reset color
-          doc.setTextColor(0, 0, 0)
-          yPosition += 5
+          doc.setFontSize(11)
+          yPosition += 6
         })
-        
+      }
+
+      yPosition += 15
+
+      // Test Results Section
+      if (booking.testResults && booking.testResults.length > 0) {
+        console.log('Processing test results for PDF:', booking.testResults.length, 'results found')
+        doc.setFontSize(16)
+        doc.setFont('helvetica', 'bold')
+        doc.text('LABORATORY RESULTS', 20, yPosition)
+        yPosition += 12
+
+        const testNameById = new Map((booking.selectedTests || []).map(t => [(t.testId?._id || t.testId), t.testName]))
+
+          ; (booking.testResults || []).forEach((tr, index) => {
+            const testName = testNameById.get(tr.testId?._id || tr.testId) || 'Test'
+
+            // Check if we need a new page
+            if (yPosition > pageHeight - 80) {
+              doc.addPage()
+              yPosition = 20
+            }
+
+            // Test name with submission info
+            doc.setFontSize(12)
+            doc.setFont('helvetica', 'bold')
+            doc.text(`${index + 1}. ${String(testName)}`, 20, yPosition)
+            yPosition += 6
+
+            if (tr.submittedBy) {
+              doc.setFontSize(9)
+              doc.setFont('helvetica', 'italic')
+              doc.text(`Submitted by: ${String(tr.submittedBy)}`, 20, yPosition)
+              yPosition += 4
+            }
+
+            if (tr.submittedAt) {
+              doc.text(`Submitted on: ${formatDate(tr.submittedAt)}`, 20, yPosition)
+              yPosition += 4
+            }
+
+            yPosition += 8
+
+            // Results table header
+            doc.setFontSize(10)
+            doc.setFont('helvetica', 'bold')
+            doc.text('Parameter', 20, yPosition)
+            doc.text('Value', 80, yPosition)
+            doc.text('Unit', 120, yPosition)
+            doc.text('Reference Range', 150, yPosition)
+            yPosition += 5
+
+            // Draw line under header
+            doc.line(20, yPosition, pageWidth - 20, yPosition)
+            yPosition += 5
+
+            // Results
+            doc.setFont('helvetica', 'normal')
+              ; (tr.values || []).forEach(v => {
+                if (yPosition > pageHeight - 30) {
+                  doc.addPage()
+                  yPosition = 20
+                }
+
+                const value = v.type === 'boolean' ? (v.value ? 'Yes' : 'No') : (v.value ?? '')
+                const unit = v.unit || ''
+                const refRange = v.referenceRange || ''
+
+                // Check if value is outside reference range (basic validation)
+                const isOutsideRange = refRange && value && v.type === 'number' && !isNaN(value) && !isNaN(refRange.split('-')[0])
+                const textColor = isOutsideRange ? [255, 0, 0] : [0, 0, 0] // Red for abnormal values
+
+                doc.setTextColor(textColor[0], textColor[1], textColor[2])
+                doc.text(String(v.label || ''), 20, yPosition)
+                doc.text(String(value), 80, yPosition)
+                doc.text(String(unit), 120, yPosition)
+                doc.text(String(refRange), 150, yPosition)
+
+                // Reset color
+                doc.setTextColor(0, 0, 0)
+                yPosition += 5
+              })
+
+            yPosition += 15
+          })
+      } else {
+        console.log('No test results found, adding placeholder message')
+        // Add a message if no results are available
+        doc.setFontSize(14)
+        doc.setFont('helvetica', 'bold')
+        doc.text('LABORATORY RESULTS', 20, yPosition)
+        yPosition += 12
+
+        doc.setFontSize(11)
+        doc.setFont('helvetica', 'normal')
+        doc.text('No test results are available for this booking.', 20, yPosition)
         yPosition += 15
-      })
-    } else {
-      console.log('No test results found, adding placeholder message')
-      // Add a message if no results are available
-      doc.setFontSize(14)
+      }
+
+      // Report Summary
+      yPosition += 10
+      doc.setFontSize(16)
       doc.setFont('helvetica', 'bold')
-      doc.text('LABORATORY RESULTS', 20, yPosition)
+      doc.text('REPORT SUMMARY', 20, yPosition)
       yPosition += 12
-      
+
       doc.setFontSize(11)
       doc.setFont('helvetica', 'normal')
-      doc.text('No test results are available for this booking.', 20, yPosition)
-      yPosition += 15
-    }
+      doc.text(`Total Tests Requested: ${String((booking.selectedTests || []).length + (booking.selectedPackages || []).length)}`, leftColumn, yPosition)
+      doc.text(`Results Available: ${String(booking.testResults?.length || 0)}`, rightColumn, yPosition)
+      yPosition += 6
 
-    // Report Summary
-    yPosition += 10
-    doc.setFontSize(16)
-    doc.setFont('helvetica', 'bold')
-    doc.text('REPORT SUMMARY', 20, yPosition)
-    yPosition += 12
+      doc.text(`Report Generated: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, leftColumn, yPosition)
+      doc.text(`Report Status: ${String(booking.status || 'Unknown')}`, rightColumn, yPosition)
+      yPosition += 6
 
-    doc.setFontSize(11)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`Total Tests Requested: ${String((booking.selectedTests || []).length + (booking.selectedPackages || []).length)}`, leftColumn, yPosition)
-    doc.text(`Results Available: ${String(booking.testResults?.length || 0)}`, rightColumn, yPosition)
-    yPosition += 6
-    
-    doc.text(`Report Generated: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, leftColumn, yPosition)
-    doc.text(`Report Status: ${String(booking.status || 'Unknown')}`, rightColumn, yPosition)
-    yPosition += 6
-    
-    if (booking.reportFile) {
-      doc.text(`Report File: Available`, leftColumn, yPosition)
-    }
+      if (booking.reportFile) {
+        doc.text(`Report File: Available`, leftColumn, yPosition)
+      }
 
-    // Disclaimer and Footer
-    yPosition += 20
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'bold')
-    doc.text('IMPORTANT DISCLAIMER:', 20, yPosition)
-    yPosition += 8
-    
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'normal')
-    doc.text('This report is generated electronically and does not require a signature.', 20, yPosition)
-    yPosition += 5
-    doc.text('Results should be interpreted by a qualified healthcare professional.', 20, yPosition)
-    yPosition += 5
-    doc.text('For any queries regarding this report, please contact the laboratory.', 20, yPosition)
-    yPosition += 15
-
-    // Lab Certification/Accreditation
-    if (booking.labId?.certifications || booking.labId?.accreditations) {
+      // Disclaimer and Footer
+      yPosition += 20
       doc.setFontSize(10)
       doc.setFont('helvetica', 'bold')
-      doc.text('LABORATORY CERTIFICATION:', 20, yPosition)
+      doc.text('IMPORTANT DISCLAIMER:', 20, yPosition)
       yPosition += 8
-      
+
       doc.setFontSize(9)
       doc.setFont('helvetica', 'normal')
-      if (booking.labId.certifications) {
-        doc.text(`Certifications: ${String(booking.labId.certifications)}`, 20, yPosition)
-        yPosition += 5
-      }
-      if (booking.labId.accreditations) {
-        doc.text(`Accreditations: ${String(booking.labId.accreditations)}`, 20, yPosition)
-        yPosition += 5
-      }
-    }
+      doc.text('This report is generated electronically and does not require a signature.', 20, yPosition)
+      yPosition += 5
+      doc.text('Results should be interpreted by a qualified healthcare professional.', 20, yPosition)
+      yPosition += 5
+      doc.text('For any queries regarding this report, please contact the laboratory.', 20, yPosition)
+      yPosition += 15
 
-    // Footer
-    const footerY = pageHeight - 15
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`Report ID: ${String(booking._id)} | Generated: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 20, footerY)
-    
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'bold')
-    doc.text('LabMate Laboratory Management System', pageWidth - 20, footerY, { align: 'right' })
+      // Lab Certification/Accreditation
+      if (booking.labId?.certifications || booking.labId?.accreditations) {
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.text('LABORATORY CERTIFICATION:', 20, yPosition)
+        yPosition += 8
+
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'normal')
+        if (booking.labId.certifications) {
+          doc.text(`Certifications: ${String(booking.labId.certifications)}`, 20, yPosition)
+          yPosition += 5
+        }
+        if (booking.labId.accreditations) {
+          doc.text(`Accreditations: ${String(booking.labId.accreditations)}`, 20, yPosition)
+          yPosition += 5
+        }
+      }
+
+      // Footer
+      const footerY = pageHeight - 15
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Report ID: ${String(booking._id)} | Generated: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 20, footerY)
+
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.text('LabMate Laboratory Management System', pageWidth - 20, footerY, { align: 'right' })
 
       // Download the PDF with comprehensive filename
       const patientName = `${booking.userId?.firstName || ''}_${booking.userId?.lastName || ''}`.replace(/\s/g, '_')
       const appointmentDate = formatDate(booking.appointmentDate).replace(/\s/g, '_')
       const filename = `LabReport_${patientName}_${appointmentDate}_${booking._id}.pdf`
-      
+
       console.log('Saving PDF with filename:', filename)
       doc.save(filename)
       console.log('PDF download initiated successfully')
@@ -771,14 +775,14 @@ Please format your response in a clear, structured manner suitable for a patient
                 <Brain className="h-6 w-6 text-purple-600" />
                 <h3 className="text-lg font-medium text-gray-900">AI Analysis</h3>
               </div>
-              <button 
-                onClick={() => setAiAnalysis({})} 
+              <button
+                onClick={() => setAiAnalysis({})}
                 className="text-gray-400 hover:text-gray-600"
               >
                 ✕
               </button>
             </div>
-            
+
             {Object.entries(aiAnalysis).map(([bookingId, analysis]) => {
               const booking = bookings.find(b => b._id === bookingId)
               return (
@@ -802,10 +806,10 @@ Please format your response in a clear, structured manner suitable for a patient
                 </div>
               )
             })}
-            
+
             <div className="flex justify-end">
-              <button 
-                onClick={() => setAiAnalysis({})} 
+              <button
+                onClick={() => setAiAnalysis({})}
                 className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
               >
                 Close Analysis

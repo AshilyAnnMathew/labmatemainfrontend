@@ -3,7 +3,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 // Helper function to make API requests
 const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
-  
+
   const config = {
     headers: {
       'Content-Type': 'application/json',
@@ -70,6 +70,23 @@ export const authAPI = {
       body: JSON.stringify(profileData),
     });
   },
+
+  // Upload profile image
+  uploadProfileImage: async (formData) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/auth/profile-image`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to upload image');
+    }
+    return data;
+  },
 };
 
 // Verification API
@@ -119,7 +136,7 @@ export const removeAuthToken = () => {
 export const isAuthenticated = () => {
   const token = getAuthToken();
   if (!token) return false;
-  
+
   try {
     // Check if token is expired (basic check)
     const payload = JSON.parse(atob(token.split('.')[1]));
@@ -325,7 +342,7 @@ export const testAPI = {
   createTest: async (testData) => {
     try {
       const formData = new FormData();
-      
+
       // Add all fields to form data
       Object.keys(testData).forEach(key => {
         const value = testData[key];
@@ -361,7 +378,7 @@ export const testAPI = {
   updateTest: async (testId, testData) => {
     try {
       const formData = new FormData();
-      
+
       // Add all fields to form data
       Object.keys(testData).forEach(key => {
         const value = testData[key];
@@ -440,7 +457,7 @@ export const packageAPI = {
   createPackage: async (packageData) => {
     try {
       const formData = new FormData();
-      
+
       // Add all fields to form data
       Object.keys(packageData).forEach(key => {
         const value = packageData[key];
@@ -480,7 +497,7 @@ export const packageAPI = {
   updatePackage: async (packageId, packageData) => {
     try {
       const formData = new FormData();
-      
+
       // Add all fields to form data
       Object.keys(packageData).forEach(key => {
         const value = packageData[key];
@@ -696,7 +713,7 @@ const bookingAPI = {
     try {
       const formData = new FormData();
       formData.append('reportFile', reportFile);
-      
+
       const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/upload-report`, {
         method: 'POST',
         headers: {
@@ -806,12 +823,12 @@ const bookingAPI = {
       // Get user info to determine the correct endpoint
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const isAdmin = user.role === 'admin';
-      
+
       // Use admin endpoint for admin users, regular endpoint for staff/local admin
-      const endpoint = isAdmin 
+      const endpoint = isAdmin
         ? `${API_BASE_URL}/bookings/admin/${id}/status`
         : `${API_BASE_URL}/bookings/${id}/status`;
-      
+
       const response = await fetch(endpoint, {
         method: 'PUT',
         headers: {
@@ -874,25 +891,25 @@ const bookingAPI = {
     }
   },
 
-    // Get lab reports (for staff)
-    getLabReports: async (labId, status = 'all', page = 1, limit = 50) => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/bookings/lab/${labId}/reports?status=${status}&page=${page}&limit=${limit}`, {
-          headers: {
-            'Authorization': `Bearer ${getAuthToken()}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.message || 'Failed to fetch lab reports');
-        }
-        return data;
-      } catch (error) {
-        console.error('Error fetching lab reports:', error);
-        throw error;
+  // Get lab reports (for staff)
+  getLabReports: async (labId, status = 'all', page = 1, limit = 50) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/bookings/lab/${labId}/reports?status=${status}&page=${page}&limit=${limit}`, {
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch lab reports');
       }
+      return data;
+    } catch (error) {
+      console.error('Error fetching lab reports:', error);
+      throw error;
     }
+  }
 
 };
 
@@ -968,10 +985,10 @@ export const labAPI = {
   createLab: async (labData) => {
     try {
       console.log('API: Creating lab with data:', labData);
-      
+
       const jsonData = JSON.stringify(labData);
       console.log('API: JSON stringified data:', jsonData);
-      
+
       // Test if JSON is valid
       try {
         JSON.parse(jsonData);
@@ -980,7 +997,7 @@ export const labAPI = {
         console.error('API: Invalid JSON:', jsonError);
         throw new Error('Invalid JSON data');
       }
-      
+
       const response = await fetch(`${API_BASE_URL}/labs`, {
         method: 'POST',
         headers: {
@@ -989,12 +1006,12 @@ export const labAPI = {
         },
         body: jsonData
       });
-      
+
       console.log('API: Response status:', response.status);
-      
+
       const data = await response.json();
       console.log('API: Response data:', data);
-      
+
       if (!response.ok) {
         throw new Error(data.message || 'Failed to create lab');
       }
@@ -1208,7 +1225,7 @@ export const localAdminAPI = {
         page: page.toString(),
         limit: limit.toString()
       });
-      
+
       const response = await fetch(`${API_BASE_URL}/bookings/lab/${labId}?${params}`, {
         method: 'GET',
         headers: {
@@ -1455,7 +1472,7 @@ export const googleAuthAPI = {
       // Store token and user data
       localStorage.setItem('authToken', token);
       localStorage.setItem('user', JSON.stringify(userData));
-      
+
       return {
         success: true,
         data: {
@@ -1522,7 +1539,7 @@ export const adminAPI = {
           'Content-Type': 'application/json',
         },
       });
-      
+
       if (format === 'csv') {
         // Handle CSV download
         const blob = await response.blob();

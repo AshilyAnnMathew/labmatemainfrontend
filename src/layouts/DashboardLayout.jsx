@@ -1,25 +1,29 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Menu, 
-  X, 
-  LogOut, 
+import {
+  Menu,
+  X,
+  LogOut,
   User,
-  ChevronDown
+  ChevronDown,
+  Bell,
+  Search,
+  LayoutDashboard
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
-const DashboardLayout = ({ 
-  children, 
-  title, 
-  sidebarItems, 
+const DashboardLayout = ({
+  children,
+  title,
+  sidebarItems,
   userRole = 'User',
   userEmail = 'user@labmate360.com'
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, logout } = useAuth()
 
   const handleLogout = () => {
@@ -31,8 +35,25 @@ const DashboardLayout = ({
   const displayUserRole = user?.role || userRole
   const displayUserEmail = user?.email || userEmail
 
+  // Get current active item label for breadcrumbs
+  const currentPath = location.pathname
+  const activeItem = sidebarItems.find(item => {
+    if (item.path === '/user/dashboard' && currentPath === '/user/dashboard') return true
+    if (item.path !== '/user/dashboard' && currentPath.includes(item.path)) return true
+    return false
+  })
+  const pageTitle = activeItem ? activeItem.label : 'Dashboard'
+
+  // Helper to get profile image URL
+  const getProfileImageUrl = (path) => {
+    if (!path) return null
+    if (path.startsWith('http')) return path
+    if (path.startsWith('uploads/')) return `http://localhost:5000/${path}`
+    return `http://localhost:5000/${path}`
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex">
       {/* Mobile sidebar backdrop */}
       <AnimatePresence>
         {sidebarOpen && (
@@ -47,114 +68,175 @@ const DashboardLayout = ({
       </AnimatePresence>
 
       {/* Sidebar */}
-      <motion.div
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+      <motion.aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
         initial={false}
       >
-        <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">LM</span>
-              </div>
-              <span className="text-xl font-bold text-gray-900">LabMate360</span>
+        {/* Logo */}
+        <div className="h-16 flex items-center px-6 border-b border-gray-100 bg-white">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg shadow-sm flex items-center justify-center text-white font-bold text-sm">
+              LM
             </div>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <span className="text-xl font-bold text-gray-800 tracking-tight">LabMate360</span>
           </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden ml-auto p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-2">
-            {sidebarItems.map((item, index) => (
-              <motion.div
+        {/* Navigation */}
+        <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
+          {sidebarItems.map((item, index) => {
+            const isActive =
+              (item.path === '/user/dashboard' && currentPath === '/user/dashboard') ||
+              (item.path !== '/user/dashboard' && currentPath.includes(item.path))
+
+            return (
+              <motion.button
                 key={item.path}
-                initial={{ opacity: 0, x: -20 }}
+                initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.1 }}
+                transition={{ duration: 0.2, delay: index * 0.05 }}
+                onClick={() => {
+                  navigate(item.path)
+                  setSidebarOpen(false)
+                }}
+                className={`w-full flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 group relative ${isActive
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
               >
-                <button
-                  onClick={() => {
-                    navigate(item.path)
-                    setSidebarOpen(false)
-                  }}
-                  className="w-full flex items-center space-x-3 px-4 py-3 text-left rounded-lg hover:bg-gray-100 transition-colors group"
-                >
-                  <item.icon className="h-5 w-5 text-gray-500 group-hover:text-primary-600" />
-                  <span className="text-gray-700 group-hover:text-gray-900">{item.label}</span>
-                </button>
-              </motion.div>
-            ))}
-          </nav>
+                {isActive && (
+                  <div className="absolute left-0 top-1/2 transform -translate-y-1/2 h-8 w-1 bg-primary-500 rounded-r-full" />
+                )}
+                <item.icon className={`h-5 w-5 ${isActive ? 'text-primary-600' : 'text-gray-400 group-hover:text-primary-500'}`} />
+                <span>{item.label}</span>
+              </motion.button>
+            )
+          })}
+        </nav>
 
-          {/* User info */}
-          <div className="p-4 border-t border-gray-200">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                <User className="h-5 w-5 text-primary-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{displayUserRole}</p>
-                <p className="text-xs text-gray-500 truncate">{displayUserEmail}</p>
-              </div>
+        {/* User Profile Summary in Sidebar (Optional bottom section) */}
+        <div className="p-4 border-t border-gray-100 bg-gray-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-200 text-primary-600 overflow-hidden">
+              {user?.profileImage ? (
+                <img
+                  src={getProfileImageUrl(user.profileImage)}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                  onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                />
+              ) : null}
+              <span className={`font-bold text-sm ${user?.profileImage ? 'hidden' : 'block'}`}>{user?.firstName?.[0] || 'U'}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">{user?.firstName} {user?.lastName}</p>
+              <p className="text-xs text-gray-500 truncate capitalize">{displayUserRole}</p>
             </div>
           </div>
         </div>
-      </motion.div>
+      </motion.aside>
 
-      {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Top navbar */}
-        <header className="bg-white shadow-sm border-b border-gray-200">
-          <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center">
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
-              >
-                <Menu className="h-5 w-5" />
-              </button>
-              <h1 className="text-2xl font-semibold text-gray-900 ml-4 lg:ml-0">{title}</h1>
+      {/* Main Layout Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Top Header */}
+        <header className="bg-white shadow-sm border-b border-gray-100 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10">
+          <div className="flex items-center">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-2 -ml-2 mr-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+
+            {/* Breadcrumbs */}
+            <nav className="flex items-center text-sm font-medium text-gray-500">
+              <span className="hover:text-gray-900 transition-colors cursor-pointer">Dashboard</span>
+              <span className="mx-2 text-gray-300">/</span>
+              <span className="text-primary-600 bg-primary-50 px-2 py-0.5 rounded-md">
+                {pageTitle}
+              </span>
+            </nav>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* Search (Hide on small screens) */}
+            <div className="hidden md:flex relative">
+              <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search..."
+                className="pl-9 pr-4 py-1.5 text-sm border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 w-48 transition-all"
+              />
             </div>
 
-            {/* User menu */}
+            {/* Notification Bell */}
+            <button className="relative p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-all">
+              <Bell className="h-5 w-5" />
+              <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full border border-white"></span>
+            </button>
+
+            <div className="h-6 w-px bg-gray-200 mx-1"></div>
+
+            {/* User Dropdown */}
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100"
+                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-200"
               >
-                <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                  <User className="h-4 w-4 text-primary-600" />
+                <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-primary-700 font-medium text-sm overflow-hidden">
+                  {user?.profileImage ? (
+                    <img
+                      src={getProfileImageUrl(user.profileImage)}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                    />
+                  ) : null}
+                  <span className={`font-medium text-sm ${user?.profileImage ? 'hidden' : 'block'}`}>{user?.firstName?.[0] || 'U'}</span>
                 </div>
-                <span className="hidden sm:block text-sm font-medium text-gray-700">{displayUserRole}</span>
                 <ChevronDown className="h-4 w-4 text-gray-400" />
               </button>
 
               <AnimatePresence>
                 {userMenuOpen && (
                   <motion.div
-                    className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-card border border-gray-100 py-2 z-50 origin-top-right"
+                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
                   >
-                    <div className="px-4 py-2 border-b border-gray-100">
-                      <p className="text-sm font-medium text-gray-900">{displayUserRole}</p>
-                      <p className="text-xs text-gray-500">{displayUserEmail}</p>
+                    <div className="px-4 py-3 border-b border-gray-50">
+                      <p className="text-sm font-semibold text-gray-900">{user?.firstName} {user?.lastName}</p>
+                      <p className="text-xs text-gray-500 truncate">{displayUserEmail}</p>
                     </div>
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      <span>Logout</span>
-                    </button>
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          navigate('/user/dashboard/profile')
+                          setUserMenuOpen(false)
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-primary-600 transition-colors"
+                      >
+                        <User className="h-4 w-4" />
+                        <span>My Profile</span>
+                      </button>
+                    </div>
+                    <div className="py-1 border-t border-gray-50">
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>Sign out</span>
+                      </button>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -162,9 +244,11 @@ const DashboardLayout = ({
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1">
-          {children}
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto bg-gray-50 p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto max-w-7xl">
+            {children}
+          </div>
         </main>
       </div>
     </div>
