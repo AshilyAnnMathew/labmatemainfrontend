@@ -69,7 +69,7 @@ const DashboardLayout = ({
 
       {/* Sidebar */}
       <motion.aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         initial={false}
       >
@@ -146,7 +146,7 @@ const DashboardLayout = ({
       {/* Main Layout Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header */}
-        <header className="bg-white shadow-sm border-b border-gray-100 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10">
+        <header className="bg-white shadow-sm border-b border-gray-100 h-20 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10">
           <div className="flex items-center">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -245,8 +245,8 @@ const DashboardLayout = ({
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto bg-gray-50 p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-7xl">
+        <main className="flex-1 overflow-y-auto bg-gray-50 p-4">
+          <div className="w-full">
             {children}
           </div>
         </main>

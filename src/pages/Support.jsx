@@ -10,6 +10,8 @@ import {
     HelpCircle,
     Clock
 } from 'lucide-react'
+import api from '../services/api'
+import Swal from 'sweetalert2'
 
 const Support = () => {
     const [openFaq, setOpenFaq] = useState(null)
@@ -34,24 +36,48 @@ const Support = () => {
         }))
     }
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
         setIsSubmitting(true)
 
-        // Simulate API call
-        setTimeout(() => {
-            setIsSubmitting(false)
-            setSubmitted(true)
-            setFormData({
-                name: '',
-                email: '',
-                subject: '',
-                message: ''
-            })
+        try {
+            const user = JSON.parse(localStorage.getItem('user'))
+            const submissionData = {
+                ...formData,
+                userId: user?._id || null
+            }
 
-            // Clear success message after 5 seconds
-            setTimeout(() => setSubmitted(false), 5000)
-        }, 1500)
+            const response = await api.messageAPI.sendMessage(submissionData)
+
+            if (response.success) {
+                setSubmitted(true)
+                setFormData({
+                    name: '',
+                    email: '',
+                    subject: '',
+                    message: ''
+                })
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Message Sent',
+                    text: 'We have received your message and will get back to you shortly.',
+                    timer: 3000,
+                    showConfirmButton: false
+                })
+
+                // Clear success message after 5 seconds
+                setTimeout(() => setSubmitted(false), 5000)
+            }
+        } catch (error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Submission Failed',
+                text: error.message || 'Failed to send message'
+            })
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     const faqs = [
@@ -102,7 +128,7 @@ const Support = () => {
     ]
 
     return (
-        <div className="max-w-6xl mx-auto space-y-8 pb-8">
+        <div className="w-full mx-auto py-4 px-4 space-y-8 pb-8">
             {/* Header Section */}
             <div className="text-center bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
                 <div className="inline-flex p-3 rounded-full bg-primary-50 text-primary-600 mb-4">

@@ -8,10 +8,11 @@ import {
   MapPin,
   HelpCircle,
   MessageCircle,
-  User
+  User,
+  LayoutDashboard
 } from 'lucide-react'
 import DashboardLayout from '../layouts/DashboardLayout'
-import PlaceholderPage from '../components/common/PlaceholderPage'
+import DashboardOverview from './DashboardOverview'
 import DownloadReports from './DownloadReports'
 import NearbyLabs from '../components/NearbyLabs'
 import BookTests from './BookTests'
@@ -21,7 +22,6 @@ import Profile from './Profile'
 import Support from './Support'
 import ProfileCompletionModal from '../components/ProfileCompletionModal'
 import { useAuth } from '../contexts/AuthContext'
-import { authAPI } from '../services/api'
 
 const UserDashboard = () => {
   const { user, updateUser, loading } = useAuth()
@@ -69,7 +69,7 @@ const UserDashboard = () => {
       // Refresh user data from backend to ensure we have latest profile data
       const refreshUserData = async () => {
         try {
-          const response = await fetch('http://localhost:5000/api/auth/me', {
+          const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/me`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -107,11 +107,6 @@ const UserDashboard = () => {
         const profileComplete = checkProfileCompleteness(currentUser)
         setIsProfileComplete(profileComplete)
 
-        console.log('Profile completeness check:', {
-          currentUser,
-          profileComplete
-        })
-
         // Show modal only if profile is incomplete
         setShowProfileModal(!profileComplete)
       })
@@ -141,6 +136,11 @@ const UserDashboard = () => {
   const sidebarItems = [
     {
       path: '/user/dashboard',
+      label: 'Overview',
+      icon: LayoutDashboard
+    },
+    {
+      path: '/user/dashboard/book-tests',
       label: 'Book Tests',
       icon: Calendar
     },
@@ -180,14 +180,6 @@ const UserDashboard = () => {
       icon: HelpCircle
     }
   ]
-
-
-
-
-  // Replaced with real page in ./DownloadReports.jsx
-
-
-
 
   // HealthBot Component
   const HealthBot = () => {
@@ -454,8 +446,6 @@ Remember: Only respond if this is health/medical/laboratory related. If not, pol
     )
   }
 
-
-
   // Show loading state while user data is being loaded
   if (loading) {
     return (
@@ -477,7 +467,8 @@ Remember: Only respond if this is health/medical/laboratory related. If not, pol
         userEmail={user?.email || "user@labmate360.com"}
       >
         <Routes>
-          <Route path="/" element={<BookTests />} />
+          <Route path="/" element={<DashboardOverview />} />
+          <Route path="book-tests" element={<BookTests />} />
           <Route path="upload-prescription" element={<UploadPrescription />} />
           <Route path="bookings" element={<MyBookings />} />
           <Route path="reports" element={<DownloadReports />} />

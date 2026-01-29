@@ -1,9 +1,9 @@
 import { Routes, Route, Navigate, Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { 
-  Calendar, 
-  Upload, 
-  FileText, 
+import {
+  Calendar,
+  Upload,
+  FileText,
   MessageSquare,
   TestTube,
   FileSearch
@@ -13,6 +13,8 @@ import PlaceholderPage from '../components/common/PlaceholderPage'
 import AssignedBookings from './AssignedBookings'
 import UploadReports from './UploadReports'
 import StaffReports from './StaffReports'
+import StaffPrescriptionHandling from './StaffPrescriptionHandling'
+import StaffPatientCommunication from './StaffPatientCommunication'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 
@@ -182,7 +184,7 @@ const StaffDashboard = () => {
         try {
           setLoading(true)
           console.log('StaffDashboard: Fetching bookings for lab:', assignedLab._id)
-          
+
           // Fetch buckets - confirmed and pending bookings are "assigned"
           const [confirmed, pending, sc, rp] = await Promise.all([
             api.localAdminAPI.getLabBookings(assignedLab._id, 'confirmed', 1, 100),
@@ -198,7 +200,7 @@ const StaffDashboard = () => {
           const pendingData = pending?.success ? pending.data : (pending?.data || pending || [])
           const sampleCollectedData = sc?.success ? sc.data : (sc?.data || sc || [])
           const publishedData = rp?.success ? rp.data : (rp?.data || rp || [])
-          
+
           // Combine confirmed and pending bookings as "assigned"
           const allAssigned = [...confirmedData, ...pendingData]
           console.log('StaffDashboard: Confirmed bookings:', confirmedData)
@@ -242,7 +244,7 @@ const StaffDashboard = () => {
         const pendingData = pending?.success ? pending.data : (pending?.data || pending || [])
         const sampleCollectedData = sc?.success ? sc.data : (sc?.data || sc || [])
         const publishedData = rp?.success ? rp.data : (rp?.data || rp || [])
-        
+
         const allAssigned = [...confirmedData, ...pendingData]
         allAssigned.sort((a, b) => toDateTime(a) - toDateTime(b))
         setAssigned(allAssigned)
@@ -294,13 +296,12 @@ const StaffDashboard = () => {
         <td className="px-6 py-4">
           <div className="text-sm text-gray-900">{new Date(b.appointmentDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
           <div className="text-sm text-gray-500">{b.appointmentTime}</div>
-          <div className={`text-xs px-2 py-1 rounded-full inline-block mt-1 ${
-            b.status === 'confirmed' 
-              ? 'bg-green-100 text-green-800' 
-              : b.status === 'sample_collected'
+          <div className={`text-xs px-2 py-1 rounded-full inline-block mt-1 ${b.status === 'confirmed'
+            ? 'bg-green-100 text-green-800'
+            : b.status === 'sample_collected'
               ? 'bg-blue-100 text-blue-800'
               : 'bg-yellow-100 text-yellow-800'
-          }`}>
+            }`}>
             {b.status === 'confirmed' ? 'Confirmed' : b.status === 'sample_collected' ? 'Sample Collected' : 'Pending'}
           </div>
         </td>
@@ -308,19 +309,17 @@ const StaffDashboard = () => {
           <div className="text-sm text-gray-900 flex items-center"><TestTube className="h-4 w-4 mr-1" />{(b.selectedTests || []).length} tests</div>
           <div className="text-xs text-gray-500 mt-1">
             {b.paymentMethod === 'pay_later' ? (
-              <span className={`px-2 py-1 rounded-full ${
-                b.paymentStatus === 'completed' 
-                  ? 'bg-green-100 text-green-800' 
-                  : 'bg-orange-100 text-orange-800'
-              }`}>
+              <span className={`px-2 py-1 rounded-full ${b.paymentStatus === 'completed'
+                ? 'bg-green-100 text-green-800'
+                : 'bg-orange-100 text-orange-800'
+                }`}>
                 {b.paymentStatus === 'completed' ? 'Paid' : 'Pay at Lab'}
               </span>
             ) : (
-              <span className={`px-2 py-1 rounded-full ${
-                b.paymentStatus === 'completed' 
-                  ? 'bg-green-100 text-green-800' 
-                  : 'bg-yellow-100 text-yellow-800'
-              }`}>
+              <span className={`px-2 py-1 rounded-full ${b.paymentStatus === 'completed'
+                ? 'bg-green-100 text-green-800'
+                : 'bg-yellow-100 text-yellow-800'
+                }`}>
                 {b.paymentStatus === 'completed' ? 'Paid' : 'Pending'}
               </span>
             )}
@@ -345,8 +344,8 @@ const StaffDashboard = () => {
               </button>
             )}
             {b.status === 'sample_collected' && (
-              <Link 
-                to="/staff/upload-reports" 
+              <Link
+                to="/staff/upload-reports"
                 className="text-purple-600 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-3 py-1 rounded-md text-xs text-center"
               >
                 Add Report/Results
@@ -469,8 +468,8 @@ const StaffDashboard = () => {
         <Route path="/dashboard/" element={<AssignedOverview assignedLab={assignedLab} />} />
         <Route path="/upload-reports" element={<UploadReports />} />
         <Route path="/view-reports" element={<StaffReports />} />
-        <Route path="/prescriptions" element={<PrescriptionHandling />} />
-        <Route path="/communication" element={<PatientCommunication />} />
+        <Route path="/prescriptions" element={<StaffPrescriptionHandling />} />
+        <Route path="/communication" element={<StaffPatientCommunication />} />
         <Route path="*" element={<Navigate to="/staff/dashboard" replace />} />
       </Routes>
     </DashboardLayout>

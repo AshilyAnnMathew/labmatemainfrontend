@@ -556,7 +556,7 @@ export const packageAPI = {
 
 
 // Booking API
-const bookingAPI = {
+export const bookingAPI = {
   // Create new booking
   createBooking: async (bookingData) => {
     try {
@@ -575,6 +575,30 @@ const bookingAPI = {
       return data;
     } catch (error) {
       console.error('Error creating booking:', error);
+      throw error;
+    }
+  },
+
+  // Upload prescription
+  uploadPrescription: async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('prescriptionFile', file);
+
+      const response = await fetch(`${API_BASE_URL}/bookings/upload-prescription`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`
+        },
+        body: formData
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to upload prescription');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error uploading prescription:', error);
       throw error;
     }
   },
@@ -686,27 +710,7 @@ const bookingAPI = {
     }
   },
 
-  // Update booking status
-  updateBookingStatus: async (bookingId, status) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${getAuthToken()}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status })
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to update booking status');
-      }
-      return data;
-    } catch (error) {
-      console.error('Error updating booking status:', error);
-      throw error;
-    }
-  },
+
 
   // Upload report for booking
   uploadReport: async (bookingId, reportFile) => {
@@ -732,27 +736,7 @@ const bookingAPI = {
     }
   },
 
-  // Update booking status
-  updateBookingStatus: async (bookingId, status) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${getAuthToken()}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status })
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to update booking status');
-      }
-      return data;
-    } catch (error) {
-      console.error('Error updating booking status:', error);
-      throw error;
-    }
-  },
+
 
   // Process payment for booking
   processPayment: async (bookingId, paymentData = {}) => {
@@ -818,7 +802,7 @@ const bookingAPI = {
   },
 
   // Update booking status (works for both admin and staff)
-  updateBookingStatus: async (id, statusData) => {
+  updateBookingStatus: async (id, statusOrData) => {
     try {
       // Get user info to determine the correct endpoint
       const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -829,13 +813,18 @@ const bookingAPI = {
         ? `${API_BASE_URL}/bookings/admin/${id}/status`
         : `${API_BASE_URL}/bookings/${id}/status`;
 
+      // Handle both string status and object data
+      const bodyData = typeof statusOrData === 'string'
+        ? { status: statusOrData }
+        : statusOrData;
+
       const response = await fetch(endpoint, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${getAuthToken()}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(statusData),
+        body: JSON.stringify(bodyData),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -1218,12 +1207,13 @@ export const localAdminAPI = {
   },
 
   // Get bookings for a specific lab
-  getLabBookings: async (labId, status = 'all', page = 1, limit = 10) => {
+  getLabBookings: async (labId, status = 'all', page = 1, limit = 10, filters = {}) => {
     try {
       const params = new URLSearchParams({
         status,
         page: page.toString(),
-        limit: limit.toString()
+        limit: limit.toString(),
+        ...filters
       });
 
       const response = await fetch(`${API_BASE_URL}/bookings/lab/${labId}?${params}`, {
@@ -1440,6 +1430,80 @@ export const localAdminAPI = {
   }
 };
 
+// Message API for support and communication
+export const messageAPI = {
+  // Send a new message
+  sendMessage: async (messageData) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(getAuthToken() ? { 'Authorization': `Bearer ${getAuthToken()}` } : {})
+        },
+        body: JSON.stringify(messageData)
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send message');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error sending message:', error);
+      throw error;
+    }
+  },
+
+  // Get all messages (Staff/Admin)
+  getMessages: async (status = 'all', page = 1, limit = 20) => {
+    try {
+      const params = new URLSearchParams({
+        status,
+        page: page.toString(),
+        limit: limit.toString()
+      });
+
+      const response = await fetch(`${API_BASE_URL}/messages?${params}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch messages');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      throw error;
+    }
+  },
+
+  // Update message status
+  updateMessageStatus: async (id, status) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/messages/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update message status');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error update message status:', error);
+      throw error;
+    }
+  }
+};
+
 // Check if email exists
 export const checkEmailExists = async (email) => {
   try {
@@ -1577,6 +1641,7 @@ export default {
   resultsAPI,
   localAdminAPI,
   adminAPI,
+  messageAPI,
   googleAuthAPI,
   setAuthToken,
   getAuthToken,

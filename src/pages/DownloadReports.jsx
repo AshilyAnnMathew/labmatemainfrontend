@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
-import { FileText, Download, Eye, Calendar, TestTube, Brain, Loader2 } from 'lucide-react'
+import { FileText, Download, Eye, Calendar, TestTube, Brain, Loader2, Search } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import jsPDF from 'jspdf'
@@ -11,6 +11,7 @@ const DownloadReports = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const [aiAnalysis, setAiAnalysis] = useState({})
   const [analyzing, setAnalyzing] = useState({})
 
@@ -609,216 +610,355 @@ Please format your response in a clear, structured manner suitable for a patient
     }
   }, [formatDate])
 
+  // Filter and sort bookings
+  const filteredBookings = useMemo(() => {
+    let result = [...bookings].sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate));
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(b =>
+        (b.labId?.name || '').toLowerCase().includes(query) ||
+        (b.userId?.firstName || '').toLowerCase().includes(query) ||
+        (b.userId?.lastName || '').toLowerCase().includes(query) ||
+        (b.selectedTests || []).some(t => (t.testName || '').toLowerCase().includes(query))
+      );
+    }
+    return result;
+  }, [bookings, searchQuery]);
+
+  const mostRecentBooking = filteredBookings[0];
+
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Download Reports</h1>
+    <div className="p-4 space-y-8 max-w-7xl mx-auto">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Download Reports</h1>
+          <p className="text-gray-500 mt-1">Access and manage your medical test reports</p>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative w-full md:w-96">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search className="h-5 w-5 text-gray-400" />
+          </div>
+          <input
+            type="text"
+            placeholder="Search by lab, test, or doctor..."
+            className="pl-10 pr-4 py-2 w-full border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">{error}</div>
-      )}
-
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        {loading ? (
-          <div className="p-8 text-center text-gray-500">Loading reports...</div>
-        ) : bookings.length === 0 ? (
-          <div className="p-12 text-center">
-            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-            <div className="text-gray-700 font-medium">No reports available</div>
-            <div className="text-gray-500 text-sm">Your reports will appear here when uploaded or results are published.</div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lab</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tests</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {bookings.map(b => (
-                  <tr key={b._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div className="flex items-center">
-                        <Calendar className="h-4 w-4 text-gray-400 mr-2" />
-                        {formatDate(b.appointmentDate)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{b.labId?.name || '—'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-700">
-                      <div className="flex items-center text-gray-900">
-                        <TestTube className="h-4 w-4 text-gray-400 mr-2" />
-                        {(b.selectedTests || []).map(t => t.testName).join(', ') || '—'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                        {b.reportFile ? 'Report uploaded' : 'Results published'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                      {b.reportFile && (
-                        <a
-                          href={`http://localhost:5000/${b.reportFile}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-primary-600 hover:text-primary-900 inline-flex items-center text-xs"
-                          title="Download Report"
-                        >
-                          <Download className="h-3 w-3 mr-1" /> Download
-                        </a>
-                      )}
-                      {Array.isArray(b.testResults) && b.testResults.length > 0 && (
-                        <>
-                          <button
-                            onClick={() => setSelected(b)}
-                            className="text-gray-700 hover:text-gray-900 inline-flex items-center text-xs"
-                            title="View Results"
-                          >
-                            <Eye className="h-3 w-3 mr-1" /> View
-                          </button>
-                          <button
-                            onClick={() => downloadResultsPdf(b)}
-                            className="text-primary-600 hover:text-primary-900 inline-flex items-center text-xs"
-                            title="Download Results (PDF)"
-                          >
-                            <Download className="h-3 w-3 mr-1" /> PDF
-                          </button>
-                          <button
-                            onClick={() => analyzeResultsWithAI(b)}
-                            disabled={analyzing[b._id]}
-                            className="text-purple-600 hover:text-purple-900 inline-flex items-center text-xs disabled:opacity-50"
-                            title="AI Analysis"
-                          >
-                            {analyzing[b._id] ? (
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                            ) : (
-                              <Brain className="h-3 w-3 mr-1" />
-                            )}
-                            AI
-                          </button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {selected && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Results</h3>
-              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600">✕</button>
-            </div>
-            {(selected.testResults || []).map(tr => (
-              <div key={tr.testId} className="mb-4 border border-gray-200 rounded p-3">
-                <div className="text-sm font-semibold text-gray-900 mb-2">
-                  {(selected.selectedTests || []).find(t => (t.testId?._id || t.testId) === (tr.testId?._id || tr.testId))?.testName || 'Test'}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {(tr.values || []).map((v, idx) => (
-                    <div key={idx} className="text-sm text-gray-800 border border-gray-100 rounded p-2">
-                      <div className="font-medium">{v.label}</div>
-                      <div className="text-gray-700">
-                        {v.type === 'boolean' ? (v.value ? 'Yes' : 'No') : v.value}
-                        {v.unit ? ` ${v.unit}` : ''}
-                      </div>
-                      {v.referenceRange && (
-                        <div className="text-xs text-gray-500">Ref: {v.referenceRange}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => analyzeResultsWithAI(selected)}
-                disabled={analyzing[selected._id]}
-                className="px-4 py-2 bg-purple-100 text-purple-800 rounded-md hover:bg-purple-200 inline-flex items-center disabled:opacity-50"
-              >
-                {analyzing[selected._id] ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Brain className="h-4 w-4 mr-2" />
-                )}
-                AI Analysis
-              </button>
-              <button
-                onClick={() => downloadResultsPdf(selected)}
-                className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 inline-flex items-center"
-              >
-                <Download className="h-4 w-4 mr-2" /> Download PDF
-              </button>
-              <button onClick={() => setSelected(null)} className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">Close</button>
-            </div>
-          </div>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center">
+          <div className="mr-3 text-red-500">⚠️</div>
+          {error}
         </div>
       )}
+
+      {loading ? (
+        <div className="flex flex-col items-center justify-center p-12">
+          <Loader2 className="h-8 w-8 text-primary-600 animate-spin mb-4" />
+          <p className="text-gray-500">Loading your reports...</p>
+        </div>
+      ) : bookings.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+          <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <FileText className="h-8 w-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900">No reports available</h3>
+          <p className="text-gray-500 mt-2 max-w-sm mx-auto">
+            Your medical reports will appear here once your test results are published by the lab.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Recent Report Summary Card */}
+          {mostRecentBooking && !searchQuery && (
+            <div className="bg-gradient-to-br from-primary-600 to-primary-800 rounded-2xl shadow-lg text-white p-6 md:p-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-8 opacity-10">
+                <FileText className="h-64 w-64" />
+              </div>
+
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-2 text-primary-100 uppercase text-xs font-bold tracking-wider">
+                  <span className="bg-white/20 px-2 py-1 rounded">Most Recent</span>
+                  <span>{formatDate(mostRecentBooking.appointmentDate)}</span>
+                </div>
+
+                <h2 className="text-3xl font-bold mb-1">
+                  {mostRecentBooking.labId?.name || 'Laboratory Report'}
+                </h2>
+                <p className="text-primary-100 text-lg mb-6 max-w-2xl">
+                  {(mostRecentBooking.selectedTests || []).map(t => t.testName).slice(0, 3).join(', ')}
+                  {(mostRecentBooking.selectedTests || []).length > 3 && ` +${(mostRecentBooking.selectedTests || []).length - 3} more`}
+                </p>
+
+                <div className="flex flex-wrap gap-3">
+                  {Array.isArray(mostRecentBooking.testResults) && mostRecentBooking.testResults.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => downloadResultsPdf(mostRecentBooking)}
+                        className="bg-white text-primary-700 hover:bg-gray-50 px-4 py-2 rounded-lg font-medium flex items-center transition-colors shadow-sm"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download PDF
+                      </button>
+
+                      <button
+                        onClick={() => analyzeResultsWithAI(mostRecentBooking)}
+                        disabled={analyzing[mostRecentBooking._id]}
+                        className="bg-primary-500/30 hover:bg-primary-500/40 text-white border border-white/20 px-4 py-2 rounded-lg font-medium flex items-center transition-colors backdrop-blur-sm"
+                      >
+                        {analyzing[mostRecentBooking._id] ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Brain className="h-4 w-4 mr-2" />
+                        )}
+                        AI Analysis
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => setSelected(mostRecentBooking)}
+                    className="text-white/80 hover:text-white px-4 py-2 font-medium flex items-center transition-colors"
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Details
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Reports List */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+              <h3 className="font-semibold text-gray-900">All Reports</h3>
+              <span className="text-sm text-gray-500">{filteredBookings.length} found</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-100">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Lab & Details</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {filteredBookings.map(b => (
+                    <tr key={b._id} className="hover:bg-gray-50/80 transition-colors group">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-gray-900">{formatDate(b.appointmentDate)}</span>
+                          <span className="text-xs">{b.appointmentTime || 'N/A'}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-gray-900">{b.labId?.name || 'Unknown Lab'}</span>
+                          <span className="text-xs text-gray-500 truncate max-w-xs">
+                            {(b.selectedTests || []).map(t => t.testName).join(', ')}
+                            {!(b.selectedTests || []).length && 'No tests listed'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {b.reportFile ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <FileText className="h-3 w-3 mr-1" />
+                            Report Ready
+                          </span>
+                        ) : Array.isArray(b.testResults) && b.testResults.length > 0 ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <TestTube className="h-3 w-3 mr-1" />
+                            Results Published
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            Pending
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end space-x-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                          {b.reportFile ? (
+                            <a
+                              href={`http://localhost:5000/${b.reportFile}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-gray-400 hover:text-primary-600 p-2 hover:bg-primary-50 rounded-lg transition-colors border border-transparent hover:border-primary-100"
+                              title="Download Original Report"
+                            >
+                              <Download className="h-4 w-4" />
+                            </a>
+                          ) : null}
+
+                          {Array.isArray(b.testResults) && b.testResults.length > 0 && (
+                            <>
+                              <button
+                                onClick={() => analyzeResultsWithAI(b)}
+                                disabled={analyzing[b._id]}
+                                className="text-purple-400 hover:text-purple-600 p-2 hover:bg-purple-50 rounded-lg transition-colors border border-transparent hover:border-purple-100"
+                                title="AI Analysis"
+                              >
+                                {analyzing[b._id] ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Brain className="h-4 w-4" />
+                                )}
+                              </button>
+                              <button
+                                onClick={() => downloadResultsPdf(b)}
+                                className="text-gray-400 hover:text-primary-600 p-2 hover:bg-primary-50 rounded-lg transition-colors border border-transparent hover:border-primary-100"
+                                title="Download PDF"
+                              >
+                                <FileText className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => setSelected(b)}
+                                className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors border border-transparent hover:border-gray-200"
+                                title="View Details"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {filteredBookings.length === 0 && searchQuery && (
+            <div className="text-center py-12 bg-white rounded-xl border border-gray-200 border-dashed">
+              <Search className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+              <h3 className="text-gray-900 font-medium">No reports found</h3>
+              <p className="text-gray-500 text-sm">Try adjusting your search query</p>
+            </div>
+          )}
+        </>
+      )}
+
+
+      {
+        selected && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Results</h3>
+                <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+              </div>
+              {(selected.testResults || []).map(tr => (
+                <div key={tr.testId} className="mb-4 border border-gray-200 rounded p-3">
+                  <div className="text-sm font-semibold text-gray-900 mb-2">
+                    {(selected.selectedTests || []).find(t => (t.testId?._id || t.testId) === (tr.testId?._id || tr.testId))?.testName || 'Test'}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {(tr.values || []).map((v, idx) => (
+                      <div key={idx} className="text-sm text-gray-800 border border-gray-100 rounded p-2">
+                        <div className="font-medium">{v.label}</div>
+                        <div className="text-gray-700">
+                          {v.type === 'boolean' ? (v.value ? 'Yes' : 'No') : v.value}
+                          {v.unit ? ` ${v.unit}` : ''}
+                        </div>
+                        {v.referenceRange && (
+                          <div className="text-xs text-gray-500">Ref: {v.referenceRange}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => analyzeResultsWithAI(selected)}
+                  disabled={analyzing[selected._id]}
+                  className="px-4 py-2 bg-purple-100 text-purple-800 rounded-md hover:bg-purple-200 inline-flex items-center disabled:opacity-50"
+                >
+                  {analyzing[selected._id] ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Brain className="h-4 w-4 mr-2" />
+                  )}
+                  AI Analysis
+                </button>
+                <button
+                  onClick={() => downloadResultsPdf(selected)}
+                  className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 inline-flex items-center"
+                >
+                  <Download className="h-4 w-4 mr-2" /> Download PDF
+                </button>
+                <button onClick={() => setSelected(null)} className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">Close</button>
+              </div>
+            </div>
+          </div>
+        )
+      }
 
       {/* AI Analysis Modal */}
-      {aiAnalysis && Object.keys(aiAnalysis).length > 0 && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-2">
-                <Brain className="h-6 w-6 text-purple-600" />
-                <h3 className="text-lg font-medium text-gray-900">AI Analysis</h3>
+      {
+        aiAnalysis && Object.keys(aiAnalysis).length > 0 && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-2">
+                  <Brain className="h-6 w-6 text-purple-600" />
+                  <h3 className="text-lg font-medium text-gray-900">AI Analysis</h3>
+                </div>
+                <button
+                  onClick={() => setAiAnalysis({})}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                onClick={() => setAiAnalysis({})}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
-            </div>
 
-            {Object.entries(aiAnalysis).map(([bookingId, analysis]) => {
-              const booking = bookings.find(b => b._id === bookingId)
-              return (
-                <div key={bookingId} className="mb-6">
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                    <h4 className="text-md font-semibold text-purple-900 mb-2">
-                      Analysis for {booking?.userId?.firstName} {booking?.userId?.lastName}
-                    </h4>
-                    <div className="text-sm text-gray-700 whitespace-pre-wrap">
-                      {analysis}
+              {Object.entries(aiAnalysis).map(([bookingId, analysis]) => {
+                const booking = bookings.find(b => b._id === bookingId)
+                return (
+                  <div key={bookingId} className="mb-6">
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <h4 className="text-md font-semibold text-purple-900 mb-2">
+                        Analysis for {booking?.userId?.firstName} {booking?.userId?.lastName}
+                      </h4>
+                      <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {analysis}
+                      </div>
                     </div>
-                  </div>
-                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <div className="flex items-start space-x-2">
-                      <div className="text-yellow-600">⚠️</div>
-                      <div className="text-sm text-yellow-800">
-                        <strong>Important:</strong> This AI analysis is for informational purposes only and should not replace professional medical advice. Please consult with a qualified healthcare provider for proper medical interpretation and treatment recommendations.
+                    <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex items-start space-x-2">
+                        <div className="text-yellow-600">⚠️</div>
+                        <div className="text-sm text-yellow-800">
+                          <strong>Important:</strong> This AI analysis is for informational purposes only and should not replace professional medical advice. Please consult with a qualified healthcare provider for proper medical interpretation and treatment recommendations.
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
 
-            <div className="flex justify-end">
-              <button
-                onClick={() => setAiAnalysis({})}
-                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
-              >
-                Close Analysis
-              </button>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setAiAnalysis({})}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+                >
+                  Close Analysis
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   )
 }
 

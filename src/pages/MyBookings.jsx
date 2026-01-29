@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
-import { 
-  Calendar, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  Clock, 
-  CreditCard, 
-  AlertCircle, 
-  CheckCircle, 
-  XCircle, 
+import {
+  Calendar,
+  MapPin,
+  Phone,
+  Mail,
+  Clock,
+  CreditCard,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
   Loader,
   Search,
   Filter,
@@ -135,32 +135,32 @@ const MyBookings = () => {
     const searchLower = searchTerm.toLowerCase()
     const labName = booking.labId?.name?.toLowerCase() || ''
     const bookingId = booking._id.toLowerCase()
-    
+
     return labName.includes(searchLower) || bookingId.includes(searchLower)
   })
 
   const renderBookingCard = (booking) => {
     const lab = booking.labId
-    const address = typeof lab?.address === 'string' 
+    const address = typeof lab?.address === 'string'
       ? (() => {
-          try {
-            const addr = JSON.parse(lab.address)
-            return `${addr.street}, ${addr.city}, ${addr.state}`
-          } catch (e) {
-            return lab.address
-          }
-        })()
+        try {
+          const addr = JSON.parse(lab.address)
+          return `${addr.street}, ${addr.city}, ${addr.state}`
+        } catch (e) {
+          return lab.address
+        }
+      })()
       : `${lab?.address?.street || ''}, ${lab?.address?.city || ''}, ${lab?.address?.state || ''}`
 
     const contact = typeof lab?.contact === 'string'
       ? (() => {
-          try {
-            const contactData = JSON.parse(lab.contact)
-            return { phone: contactData.phone, email: contactData.email }
-          } catch (e) {
-            return { phone: lab.contact, email: '' }
-          }
-        })()
+        try {
+          const contactData = JSON.parse(lab.contact)
+          return { phone: contactData.phone, email: contactData.email }
+        } catch (e) {
+          return { phone: lab.contact, email: '' }
+        }
+      })()
       : { phone: lab?.contact?.phone || '', email: lab?.contact?.email || '' }
 
     return (
@@ -223,7 +223,7 @@ const MyBookings = () => {
           <div className="flex items-center text-sm text-gray-600">
             <CreditCard className="h-4 w-4 mr-2" />
             <span>
-              {booking.paymentMethod === 'pay_now' ? 'Paid Online' : 'Pay at Lab'} - 
+              {booking.paymentMethod === 'pay_now' ? 'Paid Online' : 'Pay at Lab'} -
               ₹{booking.totalAmount}
             </span>
           </div>
@@ -256,7 +256,7 @@ const MyBookings = () => {
       {/* Search and Filter Bar */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="w-full mx-auto py-4 px-4 sm:px-6 lg:px-8">
             <div className="relative">
               <Search className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
@@ -326,11 +326,10 @@ const MyBookings = () => {
               <button
                 key={page}
                 onClick={() => setCurrentPage(page)}
-                className={`px-3 py-2 text-sm border rounded-lg ${
-                  currentPage === page
-                    ? 'bg-primary-600 text-white border-primary-600'
-                    : 'border-gray-300 hover:bg-gray-50'
-                }`}
+                className={`px-3 py-2 text-sm border rounded-lg ${currentPage === page
+                  ? 'bg-primary-600 text-white border-primary-600'
+                  : 'border-gray-300 hover:bg-gray-50'
+                  }`}
               >
                 {page}
               </button>
@@ -375,15 +374,15 @@ const MyBookings = () => {
                       <div className="flex items-center">
                         <MapPin className="h-4 w-4 mr-2" />
                         <span>
-                          {typeof selectedBooking.labId?.address === 'string' 
+                          {typeof selectedBooking.labId?.address === 'string'
                             ? (() => {
-                                try {
-                                  const addr = JSON.parse(selectedBooking.labId.address)
-                                  return `${addr.street}, ${addr.city}, ${addr.state} - ${addr.zipCode}`
-                                } catch (e) {
-                                  return selectedBooking.labId.address
-                                }
-                              })()
+                              try {
+                                const addr = JSON.parse(selectedBooking.labId.address)
+                                return `${addr.street}, ${addr.city}, ${addr.state} - ${addr.zipCode}`
+                              } catch (e) {
+                                return selectedBooking.labId.address
+                              }
+                            })()
                             : `${selectedBooking.labId?.address?.street || ''}, ${selectedBooking.labId?.address?.city || ''}, ${selectedBooking.labId?.address?.state || ''}`
                           }
                         </span>
@@ -392,15 +391,15 @@ const MyBookings = () => {
                         <div className="flex items-center">
                           <Phone className="h-4 w-4 mr-2" />
                           <span>
-                            {typeof selectedBooking.labId.contact === 'string' 
+                            {typeof selectedBooking.labId.contact === 'string'
                               ? (() => {
-                                  try {
-                                    const contact = JSON.parse(selectedBooking.labId.contact)
-                                    return contact.phone
-                                  } catch (e) {
-                                    return selectedBooking.labId.contact
-                                  }
-                                })()
+                                try {
+                                  const contact = JSON.parse(selectedBooking.labId.contact)
+                                  return contact.phone
+                                } catch (e) {
+                                  return selectedBooking.labId.contact
+                                }
+                              })()
                               : selectedBooking.labId.contact.phone
                             }
                           </span>

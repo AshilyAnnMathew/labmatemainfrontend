@@ -407,9 +407,21 @@ const BookTests = () => {
               <h5 class="font-medium text-gray-800">Packages (${selectedPackagesData.length})</h5>
               <div class="ml-2 space-y-1">
                 ${selectedPackagesData.map(packageItem => `
-                  <div class="flex justify-between text-sm">
-                    <span class="text-gray-600">${packageItem.name}</span>
-                    <span class="text-gray-900">₹${packageItem.price}</span>
+                  <div class="border-b border-gray-100 last:border-0 pb-2 last:pb-0 mb-2 last:mb-0">
+                    <div class="flex justify-between text-sm font-medium">
+                      <span class="text-gray-800">${packageItem.name}</span>
+                      <span class="text-gray-900">₹${packageItem.price}</span>
+                    </div>
+                    ${packageItem.selectedTests && packageItem.selectedTests.length > 0 ? `
+                      <div class="ml-2 mt-1 space-y-0.5">
+                        <p class="text-xs text-gray-500 font-medium">Includes:</p>
+                        ${packageItem.selectedTests.map(test => `
+                          <div class="text-xs text-gray-600 pl-2 border-l-2 border-gray-200">
+                            ${test.name}
+                          </div>
+                        `).join('')}
+                      </div>
+                    ` : ''}
                   </div>
                 `).join('')}
               </div>
@@ -681,7 +693,7 @@ const BookTests = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto py-6 px-4">
+    <div className="w-full py-4 px-4">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Book Laboratory Tests</h1>
         <p className="text-gray-500 mt-2 text-lg">Find nearby labs and schedule your tests with ease</p>
@@ -969,6 +981,23 @@ const BookTests = () => {
                           <p className="text-sm text-gray-500 line-clamp-2 mb-3">
                             {packageItem.description || 'Comprehensive health package.'}
                           </p>
+
+                          {/* List of tests in the package */}
+                          {packageItem.selectedTests && packageItem.selectedTests.length > 0 ? (
+                            <div className="mb-2">
+                              <p className="text-xs font-semibold text-gray-700 mb-1">Includes {packageItem.selectedTests.length} Tests:</p>
+                              <ul className="text-xs text-gray-600 space-y-1 max-h-24 overflow-y-auto custom-scrollbar">
+                                {packageItem.selectedTests.map((test, index) => (
+                                  <li key={test._id || index} className="flex items-start">
+                                    <span className="mr-1.5">•</span>
+                                    <span className="line-clamp-1">{test.name}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-400 italic mb-2">No specific tests listed</p>
+                          )}
                         </div>
 
                         <div className="flex items-end justify-between mt-4 pt-4 border-t border-gray-50">
@@ -1101,9 +1130,21 @@ const BookTests = () => {
                     {selectedLab.availablePackagesDetails
                       ?.filter(packageItem => selectedPackages.includes(packageItem._id))
                       .map(packageItem => (
-                        <div key={packageItem._id} className="flex justify-between text-sm">
-                          <span className="text-gray-600">{packageItem.name}</span>
-                          <span className="text-gray-900">₹{packageItem.price}</span>
+                        <div key={packageItem._id} className="border-b border-gray-100 last:border-0 pb-2 last:pb-0 mb-2 last:mb-0">
+                          <div className="flex justify-between text-sm font-medium">
+                            <span className="text-gray-800">{packageItem.name}</span>
+                            <span className="text-gray-900">₹{packageItem.price}</span>
+                          </div>
+                          {packageItem.selectedTests && packageItem.selectedTests.length > 0 && (
+                            <div className="ml-2 mt-1 space-y-0.5">
+                              <p className="text-xs text-gray-500 font-medium">Includes:</p>
+                              {packageItem.selectedTests.map(test => (
+                                <div key={test._id} className="text-xs text-gray-600 pl-2 border-l-2 border-gray-200">
+                                  {test.name}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))
                     }
@@ -1338,9 +1379,21 @@ const BookTests = () => {
                     {selectedLab.availablePackagesDetails
                       ?.filter(packageItem => selectedPackages.includes(packageItem._id))
                       .map(packageItem => (
-                        <div key={packageItem._id} className="flex justify-between text-sm">
-                          <span className="text-gray-600">{packageItem.name}</span>
-                          <span className="text-gray-900">₹{packageItem.price}</span>
+                        <div key={packageItem._id} className="border-b border-gray-100 last:border-0 pb-2 last:pb-0 mb-2 last:mb-0">
+                          <div className="flex justify-between text-sm font-medium">
+                            <span className="text-gray-800">{packageItem.name}</span>
+                            <span className="text-gray-900">₹{packageItem.price}</span>
+                          </div>
+                          {packageItem.selectedTests && packageItem.selectedTests.length > 0 && (
+                            <div className="ml-2 mt-1 space-y-0.5">
+                              <p className="text-xs text-gray-500 font-medium">Includes:</p>
+                              {packageItem.selectedTests.map(test => (
+                                <div key={test._id} className="text-xs text-gray-600 pl-2 border-l-2 border-gray-200">
+                                  {test.name}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))
                     }

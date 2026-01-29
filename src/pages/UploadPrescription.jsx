@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { 
-  Upload, 
-  FileText, 
-  Image, 
-  File, 
-  Loader, 
-  AlertCircle, 
+import {
+  Upload,
+  FileText,
+  Image,
+  File,
+  Loader,
+  AlertCircle,
   CheckCircle,
   X,
   Search,
@@ -34,12 +34,12 @@ const UploadPrescription = () => {
   const [uploadedFile, setUploadedFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState(null)
   const [isUploading, setIsUploading] = useState(false)
-  
+
   // OCR and text extraction states
   const [extractedText, setExtractedText] = useState('')
   const [isExtracting, setIsExtracting] = useState(false)
   const [extractedTests, setExtractedTests] = useState([])
-  
+
   // Lab and booking states
   const [labs, setLabs] = useState([])
   const [selectedLab, setSelectedLab] = useState(null)
@@ -49,17 +49,17 @@ const UploadPrescription = () => {
   const [paymentMethod, setPaymentMethod] = useState('')
   const [notes, setNotes] = useState('')
   const [userLocation, setUserLocation] = useState(null)
-  
+
   // UI states
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [showAllLabs, setShowAllLabs] = useState(false)
   const [currentStep, setCurrentStep] = useState(1) // 1: Upload, 2: Review Tests, 3: Select Lab, 4: Book
-  
+
   // API key for OCR.space API
   const API_KEY = 'K81136036288957'
-  
+
   // Available time slots
   const timeSlots = [
     '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -70,26 +70,26 @@ const UploadPrescription = () => {
   // Get available time slots based on selected date
   const getAvailableTimeSlots = () => {
     if (!selectedDate) return timeSlots
-    
+
     const today = new Date()
     const selectedDateObj = new Date(selectedDate)
     const currentTime = new Date()
-    
+
     // If selected date is today, filter out past times
     if (selectedDateObj.toDateString() === today.toDateString()) {
       const currentHour = currentTime.getHours()
       const currentMinute = currentTime.getMinutes()
-      
+
       return timeSlots.filter(timeSlot => {
         // Add 30 minutes buffer to current time to allow for booking
         const [hour, minute] = timeSlot.split(':').map(Number)
         const slotTime = hour * 60 + minute
         const bufferTime = currentHour * 60 + currentMinute + 30
-        
+
         return slotTime >= bufferTime
       })
     }
-    
+
     // For future dates, return all time slots
     return timeSlots
   }
@@ -127,7 +127,7 @@ const UploadPrescription = () => {
       setLoading(true)
       const response = await labAPI.getLabs()
       const allLabsData = response.data || []
-      
+
       setLabs(allLabsData)
     } catch (err) {
       setError('Failed to fetch labs')
@@ -166,11 +166,11 @@ const UploadPrescription = () => {
     }
 
     setUploadedFile(file)
-    
+
     // Create preview URL
     const url = URL.createObjectURL(file)
     setPreviewUrl(url)
-    
+
     // Auto-extract text from both images and PDFs
     extractTextFromFile(file)
   }
@@ -179,7 +179,7 @@ const UploadPrescription = () => {
   const extractTextFromFile = async (file) => {
     try {
       setIsExtracting(true)
-      
+
       // Create FormData for OCR.space API
       const formData = new FormData()
       formData.append('file', file)
@@ -189,14 +189,14 @@ const UploadPrescription = () => {
       formData.append('detectOrientation', 'true')
       formData.append('scale', 'true')
       formData.append('OCREngine', '2') // Use OCR Engine 2 for better accuracy
-      
+
       // For PDFs, add additional parameters
       if (file.type === 'application/pdf') {
         formData.append('filetype', 'pdf')
         formData.append('detectCheckbox', 'true')
         formData.append('checkboxTemplate', '1')
       }
-      
+
       // Call OCR.space API
       const response = await fetch('https://api.ocr.space/parse/image', {
         method: 'POST',
@@ -208,22 +208,22 @@ const UploadPrescription = () => {
       }
 
       const data = await response.json()
-      
+
       // Check if OCR was successful
       if (!data.IsErroredOnProcessing) {
         const extractedText = data.ParsedResults?.[0]?.ParsedText || ''
         setExtractedText(extractedText)
-        
+
         // Parse tests from extracted text
         parseTestsFromText(extractedText)
       } else {
         throw new Error(data.ErrorMessage || 'OCR processing failed')
       }
-      
+
     } catch (error) {
       console.error('OCR extraction error:', error)
       setError('Failed to extract text from file. Please ensure the file is clear and readable, then try again.')
-      
+
       // Fallback: allow manual test selection
       setExtractedText('Text extraction failed. You can manually select tests below.')
       setExtractedTests([])
@@ -291,7 +291,7 @@ const UploadPrescription = () => {
     ]
 
     const foundTests = []
-    
+
     testPatterns.forEach(pattern => {
       const matches = text.match(pattern)
       if (matches) {
@@ -326,25 +326,25 @@ const UploadPrescription = () => {
   // Handle lab selection
   const handleLabSelection = async (lab) => {
     setSelectedLab(lab)
-    
+
     // Only allow booking if there are matching tests
     if (selectedTests.length > 0 && lab.availableTests) {
-      const labTestNames = lab.availableTests.map(test => 
+      const labTestNames = lab.availableTests.map(test =>
         typeof test === 'object' ? test.name?.toLowerCase() : test.toLowerCase()
       )
-      
+
       // Find which of our selected tests match with lab's available tests
       const matchingTests = selectedTests.filter(selectedTest => {
         const selectedTestLower = selectedTest.toLowerCase()
-        return labTestNames.some(labTestName => 
+        return labTestNames.some(labTestName =>
           labTestName && (
-            labTestName.includes(selectedTestLower) || 
+            labTestName.includes(selectedTestLower) ||
             selectedTestLower.includes(labTestName.split(' ')[0]) ||
             selectedTestLower === labTestName
           )
         )
       })
-      
+
       if (matchingTests.length > 0) {
         // Only proceed if there are matching tests
         setSelectedTests(matchingTests)
@@ -369,7 +369,7 @@ const UploadPrescription = () => {
 
   // Toggle test selection
   const toggleTestSelection = (testName) => {
-    setSelectedTests(prev => 
+    setSelectedTests(prev =>
       prev.includes(testName)
         ? prev.filter(name => name !== testName)
         : [...prev, testName]
@@ -410,7 +410,7 @@ const UploadPrescription = () => {
 
     try {
       setLoading(true)
-      
+
       // Prepare test data for API - only use matched tests from lab
       const selectedTestsData = selectedTests.map((testName, index) => {
         // Find matching test in selected lab (should always exist since we filtered)
@@ -418,12 +418,12 @@ const UploadPrescription = () => {
           const labTestName = typeof labTest === 'object' ? labTest.name?.toLowerCase() : labTest.toLowerCase()
           const selectedTestLower = testName.toLowerCase()
           return labTestName && (
-            labTestName.includes(selectedTestLower) || 
+            labTestName.includes(selectedTestLower) ||
             selectedTestLower.includes(labTestName.split(' ')[0]) ||
             selectedTestLower === labTestName
           )
         })
-        
+
         if (matchingLabTest) {
           // Use actual test from lab
           const testObj = typeof matchingLabTest === 'object' ? matchingLabTest : { _id: matchingLabTest, name: testName, price: 100 }
@@ -437,9 +437,11 @@ const UploadPrescription = () => {
           throw new Error(`Test "${testName}" not found in lab's available tests`)
         }
       })
-      
+
       // Create booking data
-      const bookingData = {
+
+      // Create booking data structure
+      let bookingData = {
         labId: selectedLab._id,
         selectedTests: selectedTestsData,
         selectedPackages: [],
@@ -448,23 +450,43 @@ const UploadPrescription = () => {
         paymentMethod,
         notes: `Prescription-based booking. Original notes: ${notes.trim()}`,
         userLocation: userLocation,
-        prescriptionFile: uploadedFile ? uploadedFile.name : null
+        prescriptionUrl: null // Will be updated if file uploaded
+      }
+
+      // If there's a file, upload it first
+      if (uploadedFile) {
+        try {
+          console.log('Uploading prescription file...')
+          const uploadResponse = await bookingAPI.uploadPrescription(uploadedFile)
+          if (uploadResponse.success && uploadResponse.data) {
+            bookingData.prescriptionUrl = uploadResponse.data.path
+            console.log('Prescription uploaded, url:', bookingData.prescriptionUrl)
+          }
+        } catch (uploadError) {
+          console.error('Failed to upload prescription file:', uploadError)
+          Swal.fire({
+            icon: 'warning',
+            title: 'Upload Issue',
+            text: 'Could not upload prescription image, but proceeding with booking details.',
+            confirmButtonColor: '#f59e0b'
+          })
+        }
       }
 
       console.log('Creating booking with data:', bookingData)
-      
+
       // Create booking
       const response = await bookingAPI.createBooking(bookingData)
-      
+
       console.log('Booking response:', response)
-      
+
       if (paymentMethod === 'pay_now') {
         // Show bill information popup before Razorpay
         await showBillPopup(response.data, selectedTestsData)
       } else {
         // Pay later - booking confirmed
         const message = `Your appointment at ${selectedLab.name} has been scheduled for ${selectedDate} at ${selectedTime}. Payment due at the lab.\n\nAll ${selectedTestsData.length} test(s) are confirmed and available at this lab.`
-        
+
         await Swal.fire({
           icon: 'success',
           title: 'Booking Confirmed!',
@@ -476,8 +498,9 @@ const UploadPrescription = () => {
         // Reset form
         resetForm()
       }
-      
+
     } catch (err) {
+      console.error('Booking error:', err)
       Swal.fire({
         icon: 'error',
         title: 'Booking Failed',
@@ -492,7 +515,7 @@ const UploadPrescription = () => {
   // Show bill information popup
   const showBillPopup = async (booking, selectedTestsData) => {
     const totalAmount = booking.totalAmount || 0
-    
+
     const result = await Swal.fire({
       title: 'Payment Summary',
       html: `
@@ -573,7 +596,7 @@ const UploadPrescription = () => {
                 confirmButtonColor: '#2563eb',
                 confirmButtonText: 'OK'
               })
-              
+
               resetForm()
             } catch (err) {
               Swal.fire({
@@ -593,7 +616,7 @@ const UploadPrescription = () => {
             color: '#2563eb'
           },
           modal: {
-            ondismiss: function() {
+            ondismiss: function () {
               Swal.fire({
                 icon: 'warning',
                 title: 'Payment Cancelled',
@@ -638,22 +661,22 @@ const UploadPrescription = () => {
   // Match extracted tests with lab available tests
   const matchTestsWithLab = (lab, extractedTests) => {
     if (!lab.availableTests || !extractedTests.length) return { matches: [], unmatched: extractedTests }
-    
-    const availableTestNames = lab.availableTests.map(test => 
+
+    const availableTestNames = lab.availableTests.map(test =>
       typeof test === 'object' ? test.name?.toLowerCase() : test.toLowerCase()
     )
-    
+
     const matches = []
     const unmatched = []
-    
+
     extractedTests.forEach(extractedTest => {
       const testLower = extractedTest.toLowerCase()
-      
+
       // Check for exact matches
-      const exactMatch = availableTestNames.find(availableTest => 
+      const exactMatch = availableTestNames.find(availableTest =>
         availableTest && availableTest.includes(testLower)
       )
-      
+
       if (exactMatch) {
         matches.push({
           extracted: extractedTest,
@@ -661,13 +684,13 @@ const UploadPrescription = () => {
         })
       } else {
         // Check for partial matches (e.g., "blood sugar" matches "blood sugar test")
-        const partialMatch = availableTestNames.find(availableTest => 
+        const partialMatch = availableTestNames.find(availableTest =>
           availableTest && (
-            availableTest.includes(testLower) || 
+            availableTest.includes(testLower) ||
             testLower.includes(availableTest.split(' ')[0]) // Match first word
           )
         )
-        
+
         if (partialMatch) {
           matches.push({
             extracted: extractedTest,
@@ -678,7 +701,7 @@ const UploadPrescription = () => {
         }
       }
     })
-    
+
     return { matches, unmatched }
   }
 
@@ -686,18 +709,18 @@ const UploadPrescription = () => {
   const filteredLabs = labs.filter(lab => {
     const searchLower = searchTerm.toLowerCase()
     const name = lab.name.toLowerCase()
-    const address = typeof lab.address === 'string' 
+    const address = typeof lab.address === 'string'
       ? lab.address.toLowerCase()
       : `${lab.address.street || ''} ${lab.address.city || ''}`.toLowerCase()
-    
+
     const matchesSearch = name.includes(searchLower) || address.includes(searchLower)
-    
+
     // If we have selected tests, only show labs that have ALL of them (or at least one matching)
     if (selectedTests.length > 0) {
       const { matches } = matchTestsWithLab(lab, selectedTests)
       return matchesSearch && matches.length > 0
     }
-    
+
     return matchesSearch
   }).map(lab => {
     // Add test matching information to each lab
@@ -728,7 +751,7 @@ const UploadPrescription = () => {
   // Handle date change and reset time if needed
   const handleDateChange = (newDate) => {
     setSelectedDate(newDate)
-    
+
     // Reset selected time if it's no longer available
     if (selectedTime && newDate) {
       const availableSlots = getAvailableTimeSlots()
@@ -751,26 +774,26 @@ const UploadPrescription = () => {
 
   // Render lab card
   const renderLabCard = (lab) => {
-    const address = typeof lab.address === 'string' 
+    const address = typeof lab.address === 'string'
       ? (() => {
-          try {
-            const addr = JSON.parse(lab.address)
-            return `${addr.street}, ${addr.city}, ${addr.state} - ${addr.zipCode}`
-          } catch (e) {
-            return lab.address
-          }
-        })()
+        try {
+          const addr = JSON.parse(lab.address)
+          return `${addr.street}, ${addr.city}, ${addr.state} - ${addr.zipCode}`
+        } catch (e) {
+          return lab.address
+        }
+      })()
       : `${lab.address.street}, ${lab.address.city}, ${lab.address.state} - ${lab.address.zipCode}`
 
     const contact = typeof lab.contact === 'string'
       ? (() => {
-          try {
-            const contactData = JSON.parse(lab.contact)
-            return { phone: contactData.phone, email: contactData.email }
-          } catch (e) {
-            return { phone: lab.contact, email: '' }
-          }
-        })()
+        try {
+          const contactData = JSON.parse(lab.contact)
+          return { phone: contactData.phone, email: contactData.email }
+        } catch (e) {
+          return { phone: lab.contact, email: '' }
+        }
+      })()
       : { phone: lab.contact.phone, email: lab.contact.email }
 
     return (
@@ -798,7 +821,7 @@ const UploadPrescription = () => {
             <ChevronRight className="h-4 w-4 ml-1" />
           </button>
         </div>
-        
+
         <div className="space-y-3">
           <div className="flex items-center text-sm text-gray-600">
             <MapPin className="h-4 w-4 mr-2" />
@@ -815,7 +838,7 @@ const UploadPrescription = () => {
             </div>
           )}
         </div>
-        
+
         {/* Test Availability Information */}
         <div className="mt-4 pt-4 border-t border-gray-200">
           {selectedTests.length > 0 && lab.testMatch ? (
@@ -828,7 +851,7 @@ const UploadPrescription = () => {
                   Total: {lab.availableTests?.length || 0} tests
                 </span>
               </div>
-              
+
               {/* Show available tests */}
               {lab.testMatch.matches.length > 0 && (
                 <div className="text-xs">
@@ -847,7 +870,7 @@ const UploadPrescription = () => {
                   </div>
                 </div>
               )}
-              
+
               {/* Show unmatched tests */}
               {lab.testMatch.unmatched.length > 0 && (
                 <div className="text-xs">
@@ -879,51 +902,47 @@ const UploadPrescription = () => {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Prescription</h1>
         <p className="text-gray-600">Upload your prescription and we'll help you book the tests</p>
-        
+
         {/* Step Indicator */}
         <div className="mt-6">
           <div className="flex items-center justify-center space-x-8">
             <div className={`flex items-center space-x-2 ${currentStep >= 1 ? 'text-primary-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                currentStep >= 1 ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-500'
-              }`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${currentStep >= 1 ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-500'
+                }`}>
                 1
               </div>
               <span className="text-sm font-medium">Upload</span>
             </div>
-            
+
             <div className={`w-8 h-0.5 ${currentStep >= 2 ? 'bg-primary-600' : 'bg-gray-200'}`}></div>
-            
+
             <div className={`flex items-center space-x-2 ${currentStep >= 2 ? 'text-primary-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                currentStep >= 2 ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-500'
-              }`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${currentStep >= 2 ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-500'
+                }`}>
                 2
               </div>
               <span className="text-sm font-medium">Review Tests</span>
             </div>
-            
+
             <div className={`w-8 h-0.5 ${currentStep >= 3 ? 'bg-primary-600' : 'bg-gray-200'}`}></div>
-            
+
             <div className={`flex items-center space-x-2 ${currentStep >= 3 ? 'text-primary-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                currentStep >= 3 ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-500'
-              }`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${currentStep >= 3 ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-500'
+                }`}>
                 3
               </div>
               <span className="text-sm font-medium">Select Lab</span>
             </div>
-            
+
             <div className={`w-8 h-0.5 ${currentStep >= 4 ? 'bg-primary-600' : 'bg-gray-200'}`}></div>
-            
+
             <div className={`flex items-center space-x-2 ${currentStep >= 4 ? 'text-primary-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                currentStep >= 4 ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-500'
-              }`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${currentStep >= 4 ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-500'
+                }`}>
                 4
               </div>
               <span className="text-sm font-medium">Book</span>
@@ -947,7 +966,7 @@ const UploadPrescription = () => {
             <Upload className="h-16 w-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Upload Your Prescription</h3>
             <p className="text-gray-600 mb-6">Upload a clear image or PDF of your prescription</p>
-            
+
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 hover:border-primary-400 transition-colors">
               <input
                 type="file"
@@ -994,7 +1013,7 @@ const UploadPrescription = () => {
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                
+
                 {/* Text Extraction Status */}
                 {isExtracting && (
                   <div className="mt-4 flex items-center justify-center text-primary-600">
@@ -1034,11 +1053,11 @@ const UploadPrescription = () => {
       {/* Step 2: Review Extracted Tests */}
       {currentStep === 2 && (
         <div>
-          
+
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-4">Review Extracted Tests</h3>
             <p className="text-gray-600 mb-6">We've identified the following tests from your prescription. Please select the ones you want to book.</p>
-            
+
             {extractedTests.length > 0 ? (
               <div className="space-y-3">
                 {extractedTests.map((test, index) => (
@@ -1127,7 +1146,7 @@ const UploadPrescription = () => {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Upload
             </button>
-            
+
             <button
               onClick={() => setCurrentStep(3)}
               disabled={!selectedTests.length}
@@ -1143,7 +1162,7 @@ const UploadPrescription = () => {
       {/* Step 3: Lab Selection */}
       {currentStep === 3 && (
         <div>
-          
+
           {/* Selected Tests Summary */}
           <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-6">
             <h3 className="text-lg font-semibold text-primary-900 mb-2">Selected Tests ({selectedTests.length})</h3>
@@ -1205,7 +1224,7 @@ const UploadPrescription = () => {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-gray-900">
-                {selectedTests.length > 0 
+                {selectedTests.length > 0
                   ? `Labs with Your Tests (${filteredLabs.length})`
                   : showAllLabs ? 'All Available Labs' : 'Labs Near You'
                 }
@@ -1274,7 +1293,7 @@ const UploadPrescription = () => {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
+
             {/* Test Details */}
             <div className="space-y-2">
               {selectedTests.map((testName, index) => {
@@ -1283,14 +1302,14 @@ const UploadPrescription = () => {
                   const labTestName = typeof labTest === 'object' ? labTest.name?.toLowerCase() : labTest.toLowerCase()
                   const selectedTestLower = testName.toLowerCase()
                   return labTestName && (
-                    labTestName.includes(selectedTestLower) || 
+                    labTestName.includes(selectedTestLower) ||
                     selectedTestLower.includes(labTestName.split(' ')[0]) ||
                     selectedTestLower === labTestName
                   )
                 })
-                
+
                 const testObj = matchingLabTest && typeof matchingLabTest === 'object' ? matchingLabTest : null
-                
+
                 return (
                   <div key={index} className="flex items-center justify-between bg-white rounded-lg p-3">
                     <div className="flex items-center">
@@ -1314,7 +1333,7 @@ const UploadPrescription = () => {
           {/* Date and Time Selection */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Schedule Appointment</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Date</label>
@@ -1326,7 +1345,7 @@ const UploadPrescription = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Time</label>
                 <select
@@ -1351,7 +1370,7 @@ const UploadPrescription = () => {
           {/* Payment Method Selection */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Payment Method</h3>
-            
+
             <div className="space-y-4">
               <label className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-300 cursor-pointer">
                 <input
@@ -1406,7 +1425,7 @@ const UploadPrescription = () => {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Lab Selection
             </button>
-            
+
             <button
               onClick={handleBooking}
               disabled={loading || !selectedDate || !selectedTime || !paymentMethod}
