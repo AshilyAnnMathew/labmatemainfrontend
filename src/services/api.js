@@ -1646,6 +1646,18 @@ export const respiratoryAPI = {
   }
 };
 
+export const mentalWellnessAPI = {
+  submitAssessment: async (data) => {
+    return apiRequest('/mental-wellness/assess', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+  getHistory: async () => {
+    return apiRequest('/mental-wellness/history');
+  }
+};
+
 export default {
   authAPI,
   verificationAPI,
@@ -1660,6 +1672,7 @@ export default {
   messageAPI,
   googleAuthAPI,
   respiratoryAPI,
+  mentalWellnessAPI,
   setAuthToken,
   getAuthToken,
   removeAuthToken,

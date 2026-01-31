@@ -10,10 +10,11 @@ import {
     ChevronRight,
     TrendingUp,
     AlertCircle,
-    Wind
+    Wind,
+    Brain
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { bookingAPI, respiratoryAPI } from '../services/api'
+import { bookingAPI, respiratoryAPI, mentalWellnessAPI } from '../services/api'
 
 const DashboardOverview = () => {
     const { user } = useAuth()
@@ -21,7 +22,8 @@ const DashboardOverview = () => {
         totalBookings: 0,
         pendingReports: 0,
         completedReports: 0,
-        latestRespiratoryScore: null
+        latestRespiratoryScore: null,
+        latestMentalScore: null
     })
     const [recentBookings, setRecentBookings] = useState([])
     const [loading, setLoading] = useState(true)
@@ -56,11 +58,23 @@ const DashboardOverview = () => {
                     console.error("Failed to fetch respiratory stats", e);
                 }
 
+                // Fetch Mental Wellness Data
+                let latestMentalScore = null;
+                try {
+                    const mentalResponse = await mentalWellnessAPI.getHistory();
+                    if (mentalResponse.success && mentalResponse.data && mentalResponse.data.length > 0) {
+                        latestMentalScore = mentalResponse.data[0].wellnessScore;
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch mental stats", e);
+                }
+
                 setStats({
                     totalBookings: total,
                     pendingReports: pending,
                     completedReports: completed,
-                    latestRespiratoryScore
+                    latestRespiratoryScore,
+                    latestMentalScore
                 })
 
                 // Get recent 3 bookings
@@ -138,9 +152,23 @@ const DashboardOverview = () => {
                     <div>
                         <p className="text-sm font-medium text-gray-500">Respiratory Score</p>
                         <p className={`text-2xl font-bold ${stats.latestRespiratoryScore >= 75 ? 'text-green-600' :
-                                stats.latestRespiratoryScore >= 40 ? 'text-yellow-600' : 'text-gray-900'
+                            stats.latestRespiratoryScore >= 40 ? 'text-yellow-600' : 'text-gray-900'
                             }`}>
                             {stats.latestRespiratoryScore !== null ? stats.latestRespiratoryScore : 'N/A'}
+                        </p>
+                    </div>
+                </Link>
+
+                <Link to="/user/dashboard/mental-wellness" className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center hover:border-purple-200 transition-colors">
+                    <div className="p-3 bg-purple-50 rounded-xl mr-4">
+                        <Brain className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500">Mental Wellness</p>
+                        <p className={`text-2xl font-bold ${stats.latestMentalScore >= 75 ? 'text-green-600' :
+                                stats.latestMentalScore >= 50 ? 'text-yellow-600' : 'text-gray-900'
+                            }`}>
+                            {stats.latestMentalScore !== null ? stats.latestMentalScore : 'N/A'}
                         </p>
                     </div>
                 </Link>
