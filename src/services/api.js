@@ -1631,8 +1631,24 @@ export const adminAPI = {
   }
 };
 
+export const respiratoryAPI = {
+  // Submit new assessment
+  submitAssessment: async (data) => {
+    return apiRequest('/respiratory/assess', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  // Get assessment history
+  getHistory: async () => {
+    return apiRequest('/respiratory/history');
+  }
+};
+
 export default {
   authAPI,
+  verificationAPI,
   staffAPI,
   testAPI,
   packageAPI,
@@ -1643,6 +1659,7 @@ export default {
   adminAPI,
   messageAPI,
   googleAuthAPI,
+  respiratoryAPI,
   setAuthToken,
   getAuthToken,
   removeAuthToken,

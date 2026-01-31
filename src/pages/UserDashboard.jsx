@@ -9,7 +9,8 @@ import {
   HelpCircle,
   MessageCircle,
   User,
-  LayoutDashboard
+  LayoutDashboard,
+  Wind
 } from 'lucide-react'
 import DashboardLayout from '../layouts/DashboardLayout'
 import DashboardOverview from './DashboardOverview'
@@ -20,6 +21,7 @@ import MyBookings from './MyBookings'
 import UploadPrescription from './UploadPrescription'
 import Profile from './Profile'
 import Support from './Support'
+import RespiratoryWellness from './RespiratoryWellness'
 import ProfileCompletionModal from '../components/ProfileCompletionModal'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -138,6 +140,11 @@ const UserDashboard = () => {
       path: '/user/dashboard',
       label: 'Overview',
       icon: LayoutDashboard
+    },
+    {
+      path: '/user/dashboard/respiratory',
+      label: 'Respiratory Wellness',
+      icon: Wind
     },
     {
       path: '/user/dashboard/book-tests',
@@ -468,6 +475,7 @@ Remember: Only respond if this is health/medical/laboratory related. If not, pol
       >
         <Routes>
           <Route path="/" element={<DashboardOverview />} />
+          <Route path="respiratory" element={<RespiratoryWellness />} />
           <Route path="book-tests" element={<BookTests />} />
           <Route path="upload-prescription" element={<UploadPrescription />} />
           <Route path="bookings" element={<MyBookings />} />

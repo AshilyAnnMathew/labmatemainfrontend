@@ -9,17 +9,19 @@ import {
     Upload,
     ChevronRight,
     TrendingUp,
-    AlertCircle
+    AlertCircle,
+    Wind
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { bookingAPI } from '../services/api'
+import { bookingAPI, respiratoryAPI } from '../services/api'
 
 const DashboardOverview = () => {
     const { user } = useAuth()
     const [stats, setStats] = useState({
         totalBookings: 0,
         pendingReports: 0,
-        completedReports: 0
+        completedReports: 0,
+        latestRespiratoryScore: null
     })
     const [recentBookings, setRecentBookings] = useState([])
     const [loading, setLoading] = useState(true)
@@ -43,10 +45,22 @@ const DashboardOverview = () => {
                 const pending = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length
                 const completed = bookings.filter(b => b.status === 'completed').length
 
+                // Fetch Respiratory Data
+                let latestRespiratoryScore = null;
+                try {
+                    const respResponse = await respiratoryAPI.getHistory();
+                    if (respResponse.success && respResponse.data && respResponse.data.length > 0) {
+                        latestRespiratoryScore = respResponse.data[0].riskScore;
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch respiratory stats", e);
+                }
+
                 setStats({
                     totalBookings: total,
                     pendingReports: pending,
-                    completedReports: completed
+                    completedReports: completed,
+                    latestRespiratoryScore
                 })
 
                 // Get recent 3 bookings
@@ -116,6 +130,20 @@ const DashboardOverview = () => {
                         <p className="text-2xl font-bold text-gray-900">{stats.completedReports}</p>
                     </div>
                 </div>
+
+                <Link to="/user/dashboard/respiratory" className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center hover:border-blue-200 transition-colors">
+                    <div className="p-3 bg-indigo-50 rounded-xl mr-4">
+                        <Wind className="h-6 w-6 text-indigo-600" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500">Respiratory Score</p>
+                        <p className={`text-2xl font-bold ${stats.latestRespiratoryScore >= 75 ? 'text-green-600' :
+                                stats.latestRespiratoryScore >= 40 ? 'text-yellow-600' : 'text-gray-900'
+                            }`}>
+                            {stats.latestRespiratoryScore !== null ? stats.latestRespiratoryScore : 'N/A'}
+                        </p>
+                    </div>
+                </Link>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
