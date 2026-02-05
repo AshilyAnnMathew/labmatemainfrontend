@@ -166,7 +166,7 @@ const DashboardOverview = () => {
                     <div>
                         <p className="text-sm font-medium text-gray-500">Mental Wellness</p>
                         <p className={`text-2xl font-bold ${stats.latestMentalScore >= 75 ? 'text-green-600' :
-                                stats.latestMentalScore >= 50 ? 'text-yellow-600' : 'text-gray-900'
+                            stats.latestMentalScore >= 50 ? 'text-yellow-600' : 'text-gray-900'
                             }`}>
                             {stats.latestMentalScore !== null ? stats.latestMentalScore : 'N/A'}
                         </p>

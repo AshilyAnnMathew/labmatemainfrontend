@@ -1,12 +1,12 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { 
-  LayoutDashboard, 
-  TestTube, 
-  Building2, 
-  Users, 
-  Calendar, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  TestTube,
+  Building2,
+  Users,
+  Calendar,
+  BarChart3,
   Settings as SettingsIcon, // Fixed Settings import
   Plus,
   Edit,
@@ -29,6 +29,8 @@ import PlaceholderPage from '../components/common/PlaceholderPage'
 import ManageLabs from './ManageLabs'
 import AdminBookings from './AdminBookings'
 import AdminReports from './AdminReports'
+import AdminOverview from '../components/dashboard/AdminOverview'
+import AdminSettings from '../components/dashboard/AdminSettings'
 import api from '../services/api'
 const { staffAPI, testAPI, packageAPI, labAPI } = api
 
@@ -71,39 +73,7 @@ const AdminDashboard = () => {
     }
   ]
 
-  const DashboardOverview = () => (
-    <PlaceholderPage
-      title="Admin Dashboard Overview"
-      description="Comprehensive administrative control panel for LabMate360"
-      icon={BarChart3}
-      features={[
-        {
-          title: "System Analytics",
-          description: "Real-time insights into lab operations, user activity, and performance metrics"
-        },
-        {
-          title: "User Management",
-          description: "Manage staff accounts, roles, permissions, and access controls"
-        },
-        {
-          title: "Lab Configuration",
-          description: "Configure lab locations, equipment, and operational parameters"
-        },
-        {
-          title: "Test Management",
-          description: "Create, modify, and manage test types and pricing packages"
-        },
-        {
-          title: "Booking Oversight",
-          description: "Monitor all bookings, schedules, and resource allocation"
-        },
-        {
-          title: "Financial Reports",
-          description: "Generate revenue reports, cost analysis, and financial insights"
-        }
-      ]}
-    />
-  )
+
 
   const ManageTests = () => {
     const [activeTab, setActiveTab] = useState('tests')
@@ -192,7 +162,7 @@ const AdminDashboard = () => {
           setError('Image size must be less than 5MB')
           return
         }
-        
+
         const reader = new FileReader()
         reader.onload = (e) => {
           setNewTest(prev => ({
@@ -213,7 +183,7 @@ const AdminDashboard = () => {
           setError('Image size must be less than 5MB')
           return
         }
-        
+
         const reader = new FileReader()
         reader.onload = (e) => {
           setNewPackage(prev => ({
@@ -232,7 +202,7 @@ const AdminDashboard = () => {
         setLoading(true)
         setError('')
         setFieldErrors({})
-        
+
         // Validate required fields
         const errors = {}
         if (!newTest.name) errors.name = 'Test name is required'
@@ -240,7 +210,7 @@ const AdminDashboard = () => {
         if (!newTest.category) errors.category = 'Category is required'
         if (!newTest.price) errors.price = 'Price is required'
         if (!newTest.duration) errors.duration = 'Duration is required'
-        
+
         if (Object.keys(errors).length > 0) {
           setFieldErrors(errors)
           setLoading(false)
@@ -249,10 +219,10 @@ const AdminDashboard = () => {
 
         // Create test (includes resultFields if provided)
         const response = await testAPI.createTest(newTest)
-        
+
         // Refresh tests list
         await fetchTests()
-        
+
         // Close modal and reset form
         setShowAddTestModal(false)
         setNewTest({
@@ -266,7 +236,7 @@ const AdminDashboard = () => {
           image: null,
           imagePreview: null
         })
-        
+
         // Show success message
         await Swal.fire({
           icon: 'success',
@@ -275,7 +245,7 @@ const AdminDashboard = () => {
           confirmButtonColor: '#2563eb',
           confirmButtonText: 'OK'
         })
-        
+
       } catch (err) {
         let errorMessage = 'Failed to create test'
         if (err.message) {
@@ -294,7 +264,7 @@ const AdminDashboard = () => {
         setLoading(true)
         setError('')
         setFieldErrors({})
-        
+
         // Validate required fields
         const errors = {}
         if (!newTest.name) errors.name = 'Test name is required'
@@ -302,7 +272,7 @@ const AdminDashboard = () => {
         if (!newTest.category) errors.category = 'Category is required'
         if (!newTest.price) errors.price = 'Price is required'
         if (!newTest.duration) errors.duration = 'Duration is required'
-        
+
         if (Object.keys(errors).length > 0) {
           setFieldErrors(errors)
           setLoading(false)
@@ -311,10 +281,10 @@ const AdminDashboard = () => {
 
         // Update test (includes resultFields if provided)
         const response = await testAPI.updateTest(selectedTest._id, newTest)
-        
+
         // Refresh tests list
         await fetchTests()
-        
+
         // Close modal and reset form
         setShowEditTestModal(false)
         setSelectedTest(null)
@@ -329,7 +299,7 @@ const AdminDashboard = () => {
           image: null,
           imagePreview: null
         })
-        
+
         // Show success message
         await Swal.fire({
           icon: 'success',
@@ -338,7 +308,7 @@ const AdminDashboard = () => {
           confirmButtonColor: '#2563eb',
           confirmButtonText: 'OK'
         })
-        
+
       } catch (err) {
         let errorMessage = 'Failed to update test'
         if (err.message) {
@@ -357,14 +327,14 @@ const AdminDashboard = () => {
         setLoading(true)
         setError('')
         setFieldErrors({})
-        
+
         // Validate required fields
         const errors = {}
         if (!newPackage.name) errors.name = 'Package name is required'
         if (!newPackage.description) errors.description = 'Description is required'
         if (!newPackage.price) errors.price = 'Price is required'
         if (newPackage.selectedTests.length === 0) errors.selectedTests = 'At least one test must be selected'
-        
+
         if (Object.keys(errors).length > 0) {
           setFieldErrors(errors)
           setLoading(false)
@@ -373,10 +343,10 @@ const AdminDashboard = () => {
 
         // Update package
         const response = await packageAPI.updatePackage(selectedPackage._id, newPackage)
-        
+
         // Refresh packages list
         await fetchPackages()
-        
+
         // Close modal and reset form
         setShowEditPackageModal(false)
         setSelectedPackage(null)
@@ -391,7 +361,7 @@ const AdminDashboard = () => {
           image: null,
           imagePreview: null
         })
-        
+
         // Show success message
         await Swal.fire({
           icon: 'success',
@@ -400,7 +370,7 @@ const AdminDashboard = () => {
           confirmButtonColor: '#2563eb',
           confirmButtonText: 'OK'
         })
-        
+
       } catch (err) {
         let errorMessage = 'Failed to update package'
         if (err.message) {
@@ -419,14 +389,14 @@ const AdminDashboard = () => {
         setLoading(true)
         setError('')
         setFieldErrors({})
-        
+
         // Validate required fields
         const errors = {}
         if (!newPackage.name) errors.name = 'Package name is required'
         if (!newPackage.description) errors.description = 'Description is required'
         if (!newPackage.price) errors.price = 'Price is required'
         if (newPackage.selectedTests.length === 0) errors.selectedTests = 'At least one test must be selected'
-        
+
         if (Object.keys(errors).length > 0) {
           setFieldErrors(errors)
           setLoading(false)
@@ -435,10 +405,10 @@ const AdminDashboard = () => {
 
         // Create package
         const response = await packageAPI.createPackage(newPackage)
-        
+
         // Refresh packages list
         await fetchPackages()
-        
+
         // Close modal and reset form
         setShowAddPackageModal(false)
         setNewPackage({
@@ -452,7 +422,7 @@ const AdminDashboard = () => {
           image: null,
           imagePreview: null
         })
-        
+
         // Show success message
         await Swal.fire({
           icon: 'success',
@@ -461,7 +431,7 @@ const AdminDashboard = () => {
           confirmButtonColor: '#2563eb',
           confirmButtonText: 'OK'
         })
-        
+
       } catch (err) {
         let errorMessage = 'Failed to create package'
         if (err.message) {
@@ -487,7 +457,7 @@ const AdminDashboard = () => {
         cancelButtonText: 'Cancel',
         reverseButtons: true
       })
-      
+
       if (result.isConfirmed) {
         try {
           await testAPI.deleteTest(test._id)
@@ -524,7 +494,7 @@ const AdminDashboard = () => {
         cancelButtonText: 'Cancel',
         reverseButtons: true
       })
-      
+
       if (result.isConfirmed) {
         try {
           await packageAPI.deletePackage(packageItem._id)
@@ -588,7 +558,7 @@ const AdminDashboard = () => {
     // Filter tests
     const filteredTests = tests.filter(test => {
       const matchesSearch = test.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           test.description.toLowerCase().includes(searchTerm.toLowerCase())
+        test.description.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesCategory = filterCategory === 'all' || test.category === filterCategory
       return matchesSearch && matchesCategory
     })
@@ -596,7 +566,7 @@ const AdminDashboard = () => {
     // Filter packages
     const filteredPackages = packages.filter(packageItem => {
       return packageItem.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-             packageItem.description.toLowerCase().includes(searchTerm.toLowerCase())
+        packageItem.description.toLowerCase().includes(searchTerm.toLowerCase())
     })
 
     return (
@@ -612,22 +582,20 @@ const AdminDashboard = () => {
             <nav className="-mb-px flex space-x-8">
               <button
                 onClick={() => setActiveTab('tests')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'tests'
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'tests'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
               >
                 <TestTube className="h-4 w-4 inline mr-2" />
                 Tests ({tests.length})
               </button>
               <button
                 onClick={() => setActiveTab('packages')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'packages'
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'packages'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
               >
                 <BarChart3 className="h-4 w-4 inline mr-2" />
                 Packages ({packages.length})
@@ -700,8 +668,8 @@ const AdminDashboard = () => {
                   <div key={test._id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
                     {test.image && (
                       <div className="h-48 bg-gray-200 flex items-center justify-center">
-                        <img 
-                          src={test.image.startsWith('http') ? test.image : `http://localhost:5000/${test.image}`} 
+                        <img
+                          src={test.image.startsWith('http') ? test.image : `http://localhost:5000/${test.image}`}
                           alt={test.name}
                           className="w-full h-full object-cover"
                         />
@@ -716,7 +684,7 @@ const AdminDashboard = () => {
                           </span>
                         </div>
                         <div className="flex space-x-2">
-                          <button 
+                          <button
                             onClick={() => {
                               setSelectedTest(test)
                               setNewTest({
@@ -726,7 +694,7 @@ const AdminDashboard = () => {
                                 price: test.price,
                                 duration: test.duration,
                                 preparation: test.preparation || '',
-                            resultFields: Array.isArray(test.resultFields) ? test.resultFields : [],
+                                resultFields: Array.isArray(test.resultFields) ? test.resultFields : [],
                                 image: null,
                                 imagePreview: test.image ? (test.image.startsWith('http') ? test.image : `http://localhost:5000/${test.image}`) : null
                               })
@@ -736,7 +704,7 @@ const AdminDashboard = () => {
                           >
                             <Edit className="h-4 w-4" />
                           </button>
-                          <button 
+                          <button
                             onClick={() => handleDeleteTest(test)}
                             className="text-red-600 hover:text-red-900"
                           >
@@ -799,8 +767,8 @@ const AdminDashboard = () => {
                   <div key={packageItem._id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
                     {packageItem.image && (
                       <div className="h-48 bg-gray-200 flex items-center justify-center">
-                        <img 
-                          src={packageItem.image.startsWith('http') ? packageItem.image : `http://localhost:5000/${packageItem.image}`} 
+                        <img
+                          src={packageItem.image.startsWith('http') ? packageItem.image : `http://localhost:5000/${packageItem.image}`}
                           alt={packageItem.name}
                           className="w-full h-full object-cover"
                         />
@@ -815,7 +783,7 @@ const AdminDashboard = () => {
                           </span>
                         </div>
                         <div className="flex space-x-2">
-                          <button 
+                          <button
                             onClick={() => {
                               setSelectedPackage(packageItem)
                               setNewPackage({
@@ -835,7 +803,7 @@ const AdminDashboard = () => {
                           >
                             <Edit className="h-4 w-4" />
                           </button>
-                          <button 
+                          <button
                             onClick={() => handleDeletePackage(packageItem)}
                             className="text-red-600 hover:text-red-900"
                           >
@@ -844,7 +812,7 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                       <p className="text-gray-600 text-sm mb-4 line-clamp-3">{packageItem.description}</p>
-                      
+
                       {/* Display selected tests */}
                       {packageItem.selectedTests && packageItem.selectedTests.length > 0 && (
                         <div className="mb-3">
@@ -863,7 +831,7 @@ const AdminDashboard = () => {
                           </div>
                         </div>
                       )}
-                      
+
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-500">Tests: {packageItem.selectedTests.length}</span>
@@ -900,7 +868,7 @@ const AdminDashboard = () => {
                     </svg>
                   </button>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Test Name</label>
@@ -908,54 +876,51 @@ const AdminDashboard = () => {
                       type="text"
                       value={newTest.name}
                       onChange={(e) => {
-                        setNewTest({...newTest, name: e.target.value})
+                        setNewTest({ ...newTest, name: e.target.value })
                         if (fieldErrors.name) {
-                          setFieldErrors(prev => ({...prev, name: ''}))
+                          setFieldErrors(prev => ({ ...prev, name: '' }))
                         }
                       }}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.name ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.name ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
                     />
                     {fieldErrors.name && (
                       <p className="text-red-600 text-xs mt-1">{fieldErrors.name}</p>
                     )}
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                     <textarea
                       value={newTest.description}
                       onChange={(e) => {
-                        setNewTest({...newTest, description: e.target.value})
+                        setNewTest({ ...newTest, description: e.target.value })
                         if (fieldErrors.description) {
-                          setFieldErrors(prev => ({...prev, description: ''}))
+                          setFieldErrors(prev => ({ ...prev, description: '' }))
                         }
                       }}
                       rows={3}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.description ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.description ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
                     />
                     {fieldErrors.description && (
                       <p className="text-red-600 text-xs mt-1">{fieldErrors.description}</p>
                     )}
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                       <select
                         value={newTest.category}
                         onChange={(e) => {
-                          setNewTest({...newTest, category: e.target.value})
+                          setNewTest({ ...newTest, category: e.target.value })
                           if (fieldErrors.category) {
-                            setFieldErrors(prev => ({...prev, category: ''}))
+                            setFieldErrors(prev => ({ ...prev, category: '' }))
                           }
                         }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.category ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.category ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                          }`}
                       >
                         <option value="">Select Category</option>
                         <option value="blood">Blood Tests</option>
@@ -974,14 +939,13 @@ const AdminDashboard = () => {
                         type="number"
                         value={newTest.price}
                         onChange={(e) => {
-                          setNewTest({...newTest, price: e.target.value})
+                          setNewTest({ ...newTest, price: e.target.value })
                           if (fieldErrors.price) {
-                            setFieldErrors(prev => ({...prev, price: ''}))
+                            setFieldErrors(prev => ({ ...prev, price: '' }))
                           }
                         }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.price ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.price ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                          }`}
                         placeholder="0.00"
                       />
                       {fieldErrors.price && (
@@ -989,7 +953,7 @@ const AdminDashboard = () => {
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
@@ -997,14 +961,13 @@ const AdminDashboard = () => {
                         type="text"
                         value={newTest.duration}
                         onChange={(e) => {
-                          setNewTest({...newTest, duration: e.target.value})
+                          setNewTest({ ...newTest, duration: e.target.value })
                           if (fieldErrors.duration) {
-                            setFieldErrors(prev => ({...prev, duration: ''}))
+                            setFieldErrors(prev => ({ ...prev, duration: '' }))
                           }
                         }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.duration ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.duration ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                          }`}
                         placeholder="e.g., 24-48 hours"
                       />
                       {fieldErrors.duration && (
@@ -1021,20 +984,20 @@ const AdminDashboard = () => {
                       />
                     </div>
                   </div>
-                  
+
                   {newTest.imagePreview && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Image Preview</label>
                       <div className="w-32 h-32 border border-gray-300 rounded-md overflow-hidden">
-                        <img 
-                          src={newTest.imagePreview} 
-                          alt="Preview" 
+                        <img
+                          src={newTest.imagePreview}
+                          alt="Preview"
                           className="w-full h-full object-cover"
                         />
                       </div>
                     </div>
                   )}
-                  
+
                   {/* Result Fields */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
@@ -1124,14 +1087,14 @@ const AdminDashboard = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Preparation Instructions</label>
                     <textarea
                       value={newTest.preparation}
-                      onChange={(e) => setNewTest({...newTest, preparation: e.target.value})}
+                      onChange={(e) => setNewTest({ ...newTest, preparation: e.target.value })}
                       rows={3}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       placeholder="e.g., Fasting required for 12 hours"
                     />
                   </div>
                 </div>
-                
+
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
                     onClick={() => setShowAddTestModal(false)}
@@ -1176,7 +1139,7 @@ const AdminDashboard = () => {
                     </svg>
                   </button>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Package Name</label>
@@ -1184,40 +1147,38 @@ const AdminDashboard = () => {
                       type="text"
                       value={newPackage.name}
                       onChange={(e) => {
-                        setNewPackage({...newPackage, name: e.target.value})
+                        setNewPackage({ ...newPackage, name: e.target.value })
                         if (fieldErrors.name) {
-                          setFieldErrors(prev => ({...prev, name: ''}))
+                          setFieldErrors(prev => ({ ...prev, name: '' }))
                         }
                       }}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.name ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.name ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
                     />
                     {fieldErrors.name && (
                       <p className="text-red-600 text-xs mt-1">{fieldErrors.name}</p>
                     )}
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                     <textarea
                       value={newPackage.description}
                       onChange={(e) => {
-                        setNewPackage({...newPackage, description: e.target.value})
+                        setNewPackage({ ...newPackage, description: e.target.value })
                         if (fieldErrors.description) {
-                          setFieldErrors(prev => ({...prev, description: ''}))
+                          setFieldErrors(prev => ({ ...prev, description: '' }))
                         }
                       }}
                       rows={3}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.description ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.description ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
                     />
                     {fieldErrors.description && (
                       <p className="text-red-600 text-xs mt-1">{fieldErrors.description}</p>
                     )}
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Package Price (₹)</label>
@@ -1225,14 +1186,13 @@ const AdminDashboard = () => {
                         type="number"
                         value={newPackage.price}
                         onChange={(e) => {
-                          setNewPackage({...newPackage, price: e.target.value})
+                          setNewPackage({ ...newPackage, price: e.target.value })
                           if (fieldErrors.price) {
-                            setFieldErrors(prev => ({...prev, price: ''}))
+                            setFieldErrors(prev => ({ ...prev, price: '' }))
                           }
                         }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.price ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.price ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                          }`}
                         placeholder="0.00"
                       />
                       {fieldErrors.price && (
@@ -1244,20 +1204,20 @@ const AdminDashboard = () => {
                       <input
                         type="number"
                         value={newPackage.discount}
-                        onChange={(e) => setNewPackage({...newPackage, discount: e.target.value})}
+                        onChange={(e) => setNewPackage({ ...newPackage, discount: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                         placeholder="0.00"
                       />
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
                       <input
                         type="text"
                         value={newPackage.duration}
-                        onChange={(e) => setNewPackage({...newPackage, duration: e.target.value})}
+                        onChange={(e) => setNewPackage({ ...newPackage, duration: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                         placeholder="e.g., 3-5 days"
                       />
@@ -1272,20 +1232,20 @@ const AdminDashboard = () => {
                       />
                     </div>
                   </div>
-                  
+
                   {newPackage.imagePreview && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Image Preview</label>
                       <div className="w-32 h-32 border border-gray-300 rounded-md overflow-hidden">
-                        <img 
-                          src={newPackage.imagePreview} 
-                          alt="Preview" 
+                        <img
+                          src={newPackage.imagePreview}
+                          alt="Preview"
                           className="w-full h-full object-cover"
                         />
                       </div>
                     </div>
                   )}
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Select Tests</label>
                     {fieldErrors.selectedTests && (
@@ -1312,19 +1272,19 @@ const AdminDashboard = () => {
                       )}
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Benefits</label>
                     <textarea
                       value={newPackage.benefits}
-                      onChange={(e) => setNewPackage({...newPackage, benefits: e.target.value})}
+                      onChange={(e) => setNewPackage({ ...newPackage, benefits: e.target.value })}
                       rows={3}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       placeholder="e.g., Comprehensive health screening, Early detection of diseases"
                     />
                   </div>
                 </div>
-                
+
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
                     onClick={() => setShowAddPackageModal(false)}
@@ -1369,7 +1329,7 @@ const AdminDashboard = () => {
                     </svg>
                   </button>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Test Name</label>
@@ -1377,54 +1337,51 @@ const AdminDashboard = () => {
                       type="text"
                       value={newTest.name}
                       onChange={(e) => {
-                        setNewTest({...newTest, name: e.target.value})
+                        setNewTest({ ...newTest, name: e.target.value })
                         if (fieldErrors.name) {
-                          setFieldErrors(prev => ({...prev, name: ''}))
+                          setFieldErrors(prev => ({ ...prev, name: '' }))
                         }
                       }}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.name ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.name ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
                     />
                     {fieldErrors.name && (
                       <p className="text-red-600 text-xs mt-1">{fieldErrors.name}</p>
                     )}
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                     <textarea
                       value={newTest.description}
                       onChange={(e) => {
-                        setNewTest({...newTest, description: e.target.value})
+                        setNewTest({ ...newTest, description: e.target.value })
                         if (fieldErrors.description) {
-                          setFieldErrors(prev => ({...prev, description: ''}))
+                          setFieldErrors(prev => ({ ...prev, description: '' }))
                         }
                       }}
                       rows={3}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.description ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.description ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
                     />
                     {fieldErrors.description && (
                       <p className="text-red-600 text-xs mt-1">{fieldErrors.description}</p>
                     )}
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                       <select
                         value={newTest.category}
                         onChange={(e) => {
-                          setNewTest({...newTest, category: e.target.value})
+                          setNewTest({ ...newTest, category: e.target.value })
                           if (fieldErrors.category) {
-                            setFieldErrors(prev => ({...prev, category: ''}))
+                            setFieldErrors(prev => ({ ...prev, category: '' }))
                           }
                         }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.category ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.category ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                          }`}
                       >
                         <option value="">Select Category</option>
                         <option value="blood">Blood Tests</option>
@@ -1443,14 +1400,13 @@ const AdminDashboard = () => {
                         type="number"
                         value={newTest.price}
                         onChange={(e) => {
-                          setNewTest({...newTest, price: e.target.value})
+                          setNewTest({ ...newTest, price: e.target.value })
                           if (fieldErrors.price) {
-                            setFieldErrors(prev => ({...prev, price: ''}))
+                            setFieldErrors(prev => ({ ...prev, price: '' }))
                           }
                         }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.price ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.price ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                          }`}
                         placeholder="0.00"
                       />
                       {fieldErrors.price && (
@@ -1458,7 +1414,7 @@ const AdminDashboard = () => {
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
@@ -1466,14 +1422,13 @@ const AdminDashboard = () => {
                         type="text"
                         value={newTest.duration}
                         onChange={(e) => {
-                          setNewTest({...newTest, duration: e.target.value})
+                          setNewTest({ ...newTest, duration: e.target.value })
                           if (fieldErrors.duration) {
-                            setFieldErrors(prev => ({...prev, duration: ''}))
+                            setFieldErrors(prev => ({ ...prev, duration: '' }))
                           }
                         }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.duration ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.duration ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                          }`}
                         placeholder="e.g., 24-48 hours"
                       />
                       {fieldErrors.duration && (
@@ -1490,20 +1445,20 @@ const AdminDashboard = () => {
                       />
                     </div>
                   </div>
-                  
+
                   {newTest.imagePreview && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Image Preview</label>
                       <div className="w-32 h-32 border border-gray-300 rounded-md overflow-hidden">
-                        <img 
-                          src={newTest.imagePreview} 
-                          alt="Preview" 
+                        <img
+                          src={newTest.imagePreview}
+                          alt="Preview"
                           className="w-full h-full object-cover"
                         />
                       </div>
                     </div>
                   )}
-                  
+
                   {/* Result Fields */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
@@ -1593,14 +1548,14 @@ const AdminDashboard = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Preparation Instructions</label>
                     <textarea
                       value={newTest.preparation}
-                      onChange={(e) => setNewTest({...newTest, preparation: e.target.value})}
+                      onChange={(e) => setNewTest({ ...newTest, preparation: e.target.value })}
                       rows={3}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       placeholder="e.g., Fasting required for 12 hours"
                     />
                   </div>
                 </div>
-                
+
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
                     onClick={() => setShowEditTestModal(false)}
@@ -1645,7 +1600,7 @@ const AdminDashboard = () => {
                     </svg>
                   </button>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Package Name</label>
@@ -1653,40 +1608,38 @@ const AdminDashboard = () => {
                       type="text"
                       value={newPackage.name}
                       onChange={(e) => {
-                        setNewPackage({...newPackage, name: e.target.value})
+                        setNewPackage({ ...newPackage, name: e.target.value })
                         if (fieldErrors.name) {
-                          setFieldErrors(prev => ({...prev, name: ''}))
+                          setFieldErrors(prev => ({ ...prev, name: '' }))
                         }
                       }}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.name ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.name ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
                     />
                     {fieldErrors.name && (
                       <p className="text-red-600 text-xs mt-1">{fieldErrors.name}</p>
                     )}
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                     <textarea
                       value={newPackage.description}
                       onChange={(e) => {
-                        setNewPackage({...newPackage, description: e.target.value})
+                        setNewPackage({ ...newPackage, description: e.target.value })
                         if (fieldErrors.description) {
-                          setFieldErrors(prev => ({...prev, description: ''}))
+                          setFieldErrors(prev => ({ ...prev, description: '' }))
                         }
                       }}
                       rows={3}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.description ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.description ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
                     />
                     {fieldErrors.description && (
                       <p className="text-red-600 text-xs mt-1">{fieldErrors.description}</p>
                     )}
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Package Price (₹)</label>
@@ -1694,14 +1647,13 @@ const AdminDashboard = () => {
                         type="number"
                         value={newPackage.price}
                         onChange={(e) => {
-                          setNewPackage({...newPackage, price: e.target.value})
+                          setNewPackage({ ...newPackage, price: e.target.value })
                           if (fieldErrors.price) {
-                            setFieldErrors(prev => ({...prev, price: ''}))
+                            setFieldErrors(prev => ({ ...prev, price: '' }))
                           }
                         }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.price ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.price ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                          }`}
                         placeholder="0.00"
                       />
                       {fieldErrors.price && (
@@ -1713,20 +1665,20 @@ const AdminDashboard = () => {
                       <input
                         type="number"
                         value={newPackage.discount}
-                        onChange={(e) => setNewPackage({...newPackage, discount: e.target.value})}
+                        onChange={(e) => setNewPackage({ ...newPackage, discount: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                         placeholder="0.00"
                       />
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
                       <input
                         type="text"
                         value={newPackage.duration}
-                        onChange={(e) => setNewPackage({...newPackage, duration: e.target.value})}
+                        onChange={(e) => setNewPackage({ ...newPackage, duration: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                         placeholder="e.g., 3-5 days"
                       />
@@ -1741,20 +1693,20 @@ const AdminDashboard = () => {
                       />
                     </div>
                   </div>
-                  
+
                   {newPackage.imagePreview && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Image Preview</label>
                       <div className="w-32 h-32 border border-gray-300 rounded-md overflow-hidden">
-                        <img 
-                          src={newPackage.imagePreview} 
-                          alt="Preview" 
+                        <img
+                          src={newPackage.imagePreview}
+                          alt="Preview"
                           className="w-full h-full object-cover"
                         />
                       </div>
                     </div>
                   )}
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Select Tests</label>
                     {fieldErrors.selectedTests && (
@@ -1781,19 +1733,19 @@ const AdminDashboard = () => {
                       )}
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Benefits</label>
                     <textarea
                       value={newPackage.benefits}
-                      onChange={(e) => setNewPackage({...newPackage, benefits: e.target.value})}
+                      onChange={(e) => setNewPackage({ ...newPackage, benefits: e.target.value })}
                       rows={3}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       placeholder="e.g., Comprehensive health screening, Early detection of diseases"
                     />
                   </div>
                 </div>
-                
+
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
                     onClick={() => setShowEditPackageModal(false)}
@@ -1832,9 +1784,9 @@ const AdminDashboard = () => {
     const [selectedStaff, setSelectedStaff] = useState(null)
     const [searchTerm, setSearchTerm] = useState('')
     const [filterRole, setFilterRole] = useState('all')
-        const [loading, setLoading] = useState(false)
-        const [error, setError] = useState('')
-        const [fieldErrors, setFieldErrors] = useState({})
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState('')
+    const [fieldErrors, setFieldErrors] = useState({})
 
     // Real data from MongoDB
     const [staffMembers, setStaffMembers] = useState([])
@@ -1941,65 +1893,65 @@ const AdminDashboard = () => {
         setLoading(true)
         setError('')
         setFieldErrors({})
-        
+
         // Validate required fields
         const errors = {}
         if (!newStaff.firstName) errors.firstName = 'First name is required'
         if (!newStaff.lastName) errors.lastName = 'Last name is required'
         if (!newStaff.email) errors.email = 'Email is required'
         if (!newStaff.phone) errors.phone = 'Phone number is required'
-        
+
         // Validate lab assignment for local_admin role
         if (newStaff.role === 'local_admin' && !newStaff.assignedLab) {
           errors.assignedLab = 'Lab assignment is required for Local Admin role'
         }
-        
+
         if (Object.keys(errors).length > 0) {
           setFieldErrors(errors)
           setLoading(false)
           return
         }
 
-            // Validate password
-            if (!newStaff.useRandomPassword) {
-              if (!newStaff.password || !newStaff.confirmPassword) {
-                setError('Password and confirm password are required')
-                setLoading(false)
-                return
-              }
-              if (newStaff.password !== newStaff.confirmPassword) {
-                setError('Passwords do not match')
-                setLoading(false)
-                return
-              }
-              if (newStaff.password.length < 6) {
-                setError('Password must be at least 6 characters long')
-                setLoading(false)
-                return
-              }
-            }
+        // Validate password
+        if (!newStaff.useRandomPassword) {
+          if (!newStaff.password || !newStaff.confirmPassword) {
+            setError('Password and confirm password are required')
+            setLoading(false)
+            return
+          }
+          if (newStaff.password !== newStaff.confirmPassword) {
+            setError('Passwords do not match')
+            setLoading(false)
+            return
+          }
+          if (newStaff.password.length < 6) {
+            setError('Password must be at least 6 characters long')
+            setLoading(false)
+            return
+          }
+        }
 
         // Create staff member
         const response = await staffAPI.createStaff(newStaff)
-        
+
         // Refresh staff list
         await fetchStaffMembers()
-        
+
         // Close modal and reset form
         setShowAddStaffModal(false)
-            setNewStaff({
-              firstName: '',
-              lastName: '',
-              email: '',
-              phone: '',
-              role: 'staff',
-              department: '',
-              assignedLab: '',
-              password: '',
-              confirmPassword: '',
-              useRandomPassword: true
-            })
-        
+        setNewStaff({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          role: 'staff',
+          department: '',
+          assignedLab: '',
+          password: '',
+          confirmPassword: '',
+          useRandomPassword: true
+        })
+
         // Show success message
         await Swal.fire({
           icon: 'success',
@@ -2008,13 +1960,13 @@ const AdminDashboard = () => {
           confirmButtonColor: '#2563eb',
           confirmButtonText: 'OK'
         })
-        
+
       } catch (err) {
         let errorMessage = 'Failed to create staff member'
-        
+
         if (err.message) {
           errorMessage = err.message
-          
+
           // Handle specific validation errors
           if (err.message.includes('phone')) {
             errorMessage = 'Invalid phone number format. Please enter a valid phone number (e.g., 09496268372)'
@@ -2024,7 +1976,7 @@ const AdminDashboard = () => {
             errorMessage = 'Email already exists. Please use a different email address'
           }
         }
-        
+
         setError(errorMessage)
         console.error('Error creating staff:', err)
       } finally {
@@ -2045,7 +1997,7 @@ const AdminDashboard = () => {
         })
         return
       }
-      
+
       setSelectedStaff(staff)
       setNewStaff({
         firstName: staff.firstName,
@@ -2069,19 +2021,19 @@ const AdminDashboard = () => {
         setLoading(true)
         setError('')
         setFieldErrors({})
-        
+
         // Validate required fields
         const errors = {}
         if (!newStaff.firstName) errors.firstName = 'First name is required'
         if (!newStaff.lastName) errors.lastName = 'Last name is required'
         if (!newStaff.email) errors.email = 'Email is required'
         if (!newStaff.phone) errors.phone = 'Phone number is required'
-        
+
         // Validate lab assignment for local_admin role
         if (newStaff.role === 'local_admin' && !newStaff.assignedLab) {
           errors.assignedLab = 'Lab assignment is required for Local Admin role'
         }
-        
+
         if (Object.keys(errors).length > 0) {
           setFieldErrors(errors)
           setLoading(false)
@@ -2121,10 +2073,10 @@ const AdminDashboard = () => {
 
         // Update staff member
         const response = await staffAPI.updateStaff(selectedStaff._id, updateData)
-        
+
         // Refresh staff list
         await fetchStaffMembers()
-        
+
         // Close modal and reset form
         setShowEditStaffModal(false)
         setSelectedStaff(null)
@@ -2140,7 +2092,7 @@ const AdminDashboard = () => {
           confirmPassword: '',
           useRandomPassword: true
         })
-        
+
         // Show success message
         await Swal.fire({
           icon: 'success',
@@ -2149,13 +2101,13 @@ const AdminDashboard = () => {
           confirmButtonColor: '#2563eb',
           confirmButtonText: 'OK'
         })
-        
+
       } catch (err) {
         let errorMessage = 'Failed to update staff member'
-        
+
         if (err.message) {
           errorMessage = err.message
-          
+
           // Handle specific validation errors
           if (err.message.includes('phone')) {
             errorMessage = 'Invalid phone number format. Please enter a valid phone number (e.g., 09496268372)'
@@ -2165,7 +2117,7 @@ const AdminDashboard = () => {
             errorMessage = 'Email already exists. Please use a different email address'
           }
         }
-        
+
         setError(errorMessage)
         console.error('Error updating staff:', err)
       } finally {
@@ -2178,7 +2130,7 @@ const AdminDashboard = () => {
       try {
         const action = isBlocked ? 'unblock' : 'block'
         const actionText = isBlocked ? 'unblock' : 'block'
-        
+
         // Show confirmation dialog
         const result = await Swal.fire({
           title: `${actionText.charAt(0).toUpperCase() + actionText.slice(1)} User?`,
@@ -2191,14 +2143,14 @@ const AdminDashboard = () => {
           cancelButtonText: 'Cancel',
           reverseButtons: true
         })
-        
+
         if (result.isConfirmed) {
           // Update user block status
           await staffAPI.updateUserBlockStatus(user._id, { isBlocked: !isBlocked })
-          
+
           // Refresh users list
           await fetchUsers()
-          
+
           // Show success message
           await Swal.fire({
             icon: 'success',
@@ -2233,7 +2185,7 @@ const AdminDashboard = () => {
         })
         return
       }
-      
+
       // Show confirmation dialog
       const result = await Swal.fire({
         title: 'Delete Staff Member?',
@@ -2246,7 +2198,7 @@ const AdminDashboard = () => {
         cancelButtonText: 'Cancel',
         reverseButtons: true
       })
-      
+
       if (result.isConfirmed) {
         await confirmDeleteStaff(staff)
       }
@@ -2256,10 +2208,10 @@ const AdminDashboard = () => {
       try {
         // Delete staff member
         await staffAPI.deleteStaff(staff._id)
-        
+
         // Refresh staff list
         await fetchStaffMembers()
-        
+
         // Show success message
         await Swal.fire({
           icon: 'success',
@@ -2268,7 +2220,7 @@ const AdminDashboard = () => {
           confirmButtonColor: '#2563eb',
           confirmButtonText: 'OK'
         })
-        
+
       } catch (err) {
         Swal.fire({
           icon: 'error',
@@ -2304,22 +2256,20 @@ const AdminDashboard = () => {
             <nav className="-mb-px flex space-x-8">
               <button
                 onClick={() => setActiveTab('staff')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'staff'
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'staff'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
               >
                 <UserCheck className="h-4 w-4 inline mr-2" />
                 Staff Management ({staffMembers.length})
               </button>
               <button
                 onClick={() => setActiveTab('users')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'users'
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'users'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
               >
                 <Users className="h-4 w-4 inline mr-2" />
                 Patient Management ({users.length})
@@ -2362,31 +2312,31 @@ const AdminDashboard = () => {
                     <Download className="h-4 w-4 mr-2" />
                     Export
                   </button>
-                      <button
-                        onClick={() => {
-                          // Initialize with random password
-                          const randomPassword = generateRandomPassword()
-                          setNewStaff({
-                            firstName: '',
-                            lastName: '',
-                            email: '',
-                            phone: '',
-                            role: 'staff',
-                            department: '',
-                            assignedLab: '',
-                            password: randomPassword,
-                            confirmPassword: randomPassword,
-                            useRandomPassword: true
-                          })
-                          setFieldErrors({})
-                          setError('')
-                          setShowAddStaffModal(true)
-                        }}
-                        className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Staff
-                      </button>
+                  <button
+                    onClick={() => {
+                      // Initialize with random password
+                      const randomPassword = generateRandomPassword()
+                      setNewStaff({
+                        firstName: '',
+                        lastName: '',
+                        email: '',
+                        phone: '',
+                        role: 'staff',
+                        department: '',
+                        assignedLab: '',
+                        password: randomPassword,
+                        confirmPassword: randomPassword,
+                        useRandomPassword: true
+                      })
+                      setFieldErrors({})
+                      setError('')
+                      setShowAddStaffModal(true)
+                    }}
+                    className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Staff
+                  </button>
                 </div>
               </div>
             </div>
@@ -2495,11 +2445,10 @@ const AdminDashboard = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              staff.isActive 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-red-100 text-red-800'
-                            }`}>
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${staff.isActive
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                              }`}>
                               {staff.isActive ? 'Active' : 'Inactive'}
                             </span>
                           </td>
@@ -2508,21 +2457,19 @@ const AdminDashboard = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
-                              <button 
+                              <button
                                 onClick={() => handleEditStaff(staff)}
-                                className={`text-primary-600 hover:text-primary-900 ${
-                                  staff.email === 'admin@labmate.com' ? 'opacity-50 cursor-not-allowed' : ''
-                                }`}
+                                className={`text-primary-600 hover:text-primary-900 ${staff.email === 'admin@labmate.com' ? 'opacity-50 cursor-not-allowed' : ''
+                                  }`}
                                 disabled={staff.email === 'admin@labmate.com'}
                                 title={staff.email === 'admin@labmate.com' ? 'Admin user cannot be edited' : 'Edit staff member'}
                               >
                                 <Edit className="h-4 w-4" />
                               </button>
-                              <button 
+                              <button
                                 onClick={() => handleDeleteStaff(staff)}
-                                className={`text-red-600 hover:text-red-900 ${
-                                  staff.email === 'admin@labmate.com' ? 'opacity-50 cursor-not-allowed' : ''
-                                }`}
+                                className={`text-red-600 hover:text-red-900 ${staff.email === 'admin@labmate.com' ? 'opacity-50 cursor-not-allowed' : ''
+                                  }`}
                                 disabled={staff.email === 'admin@labmate.com'}
                                 title={staff.email === 'admin@labmate.com' ? 'Admin user cannot be deleted' : 'Delete staff member'}
                               >
@@ -2645,11 +2592,10 @@ const AdminDashboard = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              user.isEmailVerified 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}>
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.isEmailVerified
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                              }`}>
                               {user.isEmailVerified ? 'Verified' : 'Pending'}
                             </span>
                           </td>
@@ -2665,23 +2611,21 @@ const AdminDashboard = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              user.isBlocked 
-                                ? 'bg-red-100 text-red-800' 
-                                : 'bg-green-100 text-green-800'
-                            }`}>
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.isBlocked
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-green-100 text-green-800'
+                              }`}>
                               {user.isBlocked ? 'Blocked' : 'Active'}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
-                              <button 
+                              <button
                                 onClick={() => handleToggleUserBlock(user, user.isBlocked)}
-                                className={`${
-                                  user.isBlocked 
-                                    ? 'text-green-600 hover:text-green-900' 
-                                    : 'text-red-600 hover:text-red-900'
-                                }`}
+                                className={`${user.isBlocked
+                                  ? 'text-green-600 hover:text-green-900'
+                                  : 'text-red-600 hover:text-red-900'
+                                  }`}
                                 title={user.isBlocked ? 'Unblock user' : 'Block user'}
                               >
                                 {user.isBlocked ? (
@@ -2722,7 +2666,7 @@ const AdminDashboard = () => {
                     </svg>
                   </button>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -2731,14 +2675,13 @@ const AdminDashboard = () => {
                         type="text"
                         value={newStaff.firstName}
                         onChange={(e) => {
-                          setNewStaff({...newStaff, firstName: e.target.value})
+                          setNewStaff({ ...newStaff, firstName: e.target.value })
                           if (fieldErrors.firstName) {
-                            setFieldErrors(prev => ({...prev, firstName: ''}))
+                            setFieldErrors(prev => ({ ...prev, firstName: '' }))
                           }
                         }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.firstName ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.firstName ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                          }`}
                       />
                       {fieldErrors.firstName && (
                         <p className="text-red-600 text-xs mt-1">{fieldErrors.firstName}</p>
@@ -2750,68 +2693,65 @@ const AdminDashboard = () => {
                         type="text"
                         value={newStaff.lastName}
                         onChange={(e) => {
-                          setNewStaff({...newStaff, lastName: e.target.value})
+                          setNewStaff({ ...newStaff, lastName: e.target.value })
                           if (fieldErrors.lastName) {
-                            setFieldErrors(prev => ({...prev, lastName: ''}))
+                            setFieldErrors(prev => ({ ...prev, lastName: '' }))
                           }
                         }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.lastName ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.lastName ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                          }`}
                       />
                       {fieldErrors.lastName && (
                         <p className="text-red-600 text-xs mt-1">{fieldErrors.lastName}</p>
                       )}
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                     <input
                       type="email"
                       value={newStaff.email}
                       onChange={(e) => {
-                        setNewStaff({...newStaff, email: e.target.value})
+                        setNewStaff({ ...newStaff, email: e.target.value })
                         if (fieldErrors.email) {
-                          setFieldErrors(prev => ({...prev, email: ''}))
+                          setFieldErrors(prev => ({ ...prev, email: '' }))
                         }
                       }}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.email ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.email ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
                     />
                     {fieldErrors.email && (
                       <p className="text-red-600 text-xs mt-1">{fieldErrors.email}</p>
                     )}
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                     <input
                       type="tel"
                       value={newStaff.phone}
                       onChange={(e) => {
-                        setNewStaff({...newStaff, phone: e.target.value})
+                        setNewStaff({ ...newStaff, phone: e.target.value })
                         if (fieldErrors.phone) {
-                          setFieldErrors(prev => ({...prev, phone: ''}))
+                          setFieldErrors(prev => ({ ...prev, phone: '' }))
                         }
                       }}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.phone ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.phone ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
                       placeholder="e.g., 09496268372"
                     />
                     {fieldErrors.phone && (
                       <p className="text-red-600 text-xs mt-1">{fieldErrors.phone}</p>
                     )}
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                       <select
                         value={newStaff.role}
-                        onChange={(e) => setNewStaff({...newStaff, role: e.target.value})}
+                        onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       >
                         <option value="staff">Staff</option>
@@ -2825,27 +2765,26 @@ const AdminDashboard = () => {
                       <input
                         type="text"
                         value={newStaff.department}
-                        onChange={(e) => setNewStaff({...newStaff, department: e.target.value})}
+                        onChange={(e) => setNewStaff({ ...newStaff, department: e.target.value })}
                         placeholder="e.g., Pathology"
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       />
                     </div>
                   </div>
-                  
+
                   {/* Lab Assignment */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Lab</label>
                     <select
                       value={newStaff.assignedLab}
                       onChange={(e) => {
-                        setNewStaff({...newStaff, assignedLab: e.target.value})
+                        setNewStaff({ ...newStaff, assignedLab: e.target.value })
                         if (fieldErrors.assignedLab) {
-                          setFieldErrors(prev => ({...prev, assignedLab: ''}))
+                          setFieldErrors(prev => ({ ...prev, assignedLab: '' }))
                         }
                       }}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.assignedLab ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.assignedLab ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
                     >
                       <option value="">Select Lab (Optional)</option>
                       {labs.filter(lab => lab.isActive).map(lab => (
@@ -2861,7 +2800,7 @@ const AdminDashboard = () => {
                       Lab assignment is required for Local Admin role
                     </p>
                   </div>
-                  
+
                   {/* Password Options */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Password Options</label>
@@ -2880,7 +2819,7 @@ const AdminDashboard = () => {
                           Generate Random Password
                         </label>
                       </div>
-                      
+
                       {/* Custom Password Option */}
                       <div className="flex items-center space-x-3">
                         <input
@@ -2896,7 +2835,7 @@ const AdminDashboard = () => {
                         </label>
                       </div>
                     </div>
-                    
+
                     {/* Password Display/Input */}
                     {newStaff.useRandomPassword ? (
                       <div className="mt-3">
@@ -2925,7 +2864,7 @@ const AdminDashboard = () => {
                           <input
                             type="password"
                             value={newStaff.password}
-                            onChange={(e) => setNewStaff({...newStaff, password: e.target.value})}
+                            onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                             placeholder="Enter password"
                           />
@@ -2935,7 +2874,7 @@ const AdminDashboard = () => {
                           <input
                             type="password"
                             value={newStaff.confirmPassword}
-                            onChange={(e) => setNewStaff({...newStaff, confirmPassword: e.target.value})}
+                            onChange={(e) => setNewStaff({ ...newStaff, confirmPassword: e.target.value })}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                             placeholder="Confirm password"
                           />
@@ -2944,7 +2883,7 @@ const AdminDashboard = () => {
                     )}
                   </div>
                 </div>
-                
+
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
                     onClick={() => setShowAddStaffModal(false)}
@@ -2989,7 +2928,7 @@ const AdminDashboard = () => {
                     </svg>
                   </button>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -2998,14 +2937,13 @@ const AdminDashboard = () => {
                         type="text"
                         value={newStaff.firstName}
                         onChange={(e) => {
-                          setNewStaff({...newStaff, firstName: e.target.value})
+                          setNewStaff({ ...newStaff, firstName: e.target.value })
                           if (fieldErrors.firstName) {
-                            setFieldErrors(prev => ({...prev, firstName: ''}))
+                            setFieldErrors(prev => ({ ...prev, firstName: '' }))
                           }
                         }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.firstName ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.firstName ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                          }`}
                       />
                       {fieldErrors.firstName && (
                         <p className="text-red-600 text-xs mt-1">{fieldErrors.firstName}</p>
@@ -3017,68 +2955,65 @@ const AdminDashboard = () => {
                         type="text"
                         value={newStaff.lastName}
                         onChange={(e) => {
-                          setNewStaff({...newStaff, lastName: e.target.value})
+                          setNewStaff({ ...newStaff, lastName: e.target.value })
                           if (fieldErrors.lastName) {
-                            setFieldErrors(prev => ({...prev, lastName: ''}))
+                            setFieldErrors(prev => ({ ...prev, lastName: '' }))
                           }
                         }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.lastName ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.lastName ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                          }`}
                       />
                       {fieldErrors.lastName && (
                         <p className="text-red-600 text-xs mt-1">{fieldErrors.lastName}</p>
                       )}
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                     <input
                       type="email"
                       value={newStaff.email}
                       onChange={(e) => {
-                        setNewStaff({...newStaff, email: e.target.value})
+                        setNewStaff({ ...newStaff, email: e.target.value })
                         if (fieldErrors.email) {
-                          setFieldErrors(prev => ({...prev, email: ''}))
+                          setFieldErrors(prev => ({ ...prev, email: '' }))
                         }
                       }}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.email ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.email ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
                     />
                     {fieldErrors.email && (
                       <p className="text-red-600 text-xs mt-1">{fieldErrors.email}</p>
                     )}
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                     <input
                       type="tel"
                       value={newStaff.phone}
                       onChange={(e) => {
-                        setNewStaff({...newStaff, phone: e.target.value})
+                        setNewStaff({ ...newStaff, phone: e.target.value })
                         if (fieldErrors.phone) {
-                          setFieldErrors(prev => ({...prev, phone: ''}))
+                          setFieldErrors(prev => ({ ...prev, phone: '' }))
                         }
                       }}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.phone ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.phone ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
                       placeholder="e.g., 09496268372"
                     />
                     {fieldErrors.phone && (
                       <p className="text-red-600 text-xs mt-1">{fieldErrors.phone}</p>
                     )}
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                       <select
                         value={newStaff.role}
-                        onChange={(e) => setNewStaff({...newStaff, role: e.target.value})}
+                        onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       >
                         <option value="staff">Staff</option>
@@ -3092,27 +3027,26 @@ const AdminDashboard = () => {
                       <input
                         type="text"
                         value={newStaff.department}
-                        onChange={(e) => setNewStaff({...newStaff, department: e.target.value})}
+                        onChange={(e) => setNewStaff({ ...newStaff, department: e.target.value })}
                         placeholder="e.g., Pathology"
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       />
                     </div>
                   </div>
-                  
+
                   {/* Lab Assignment */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Lab</label>
                     <select
                       value={newStaff.assignedLab}
                       onChange={(e) => {
-                        setNewStaff({...newStaff, assignedLab: e.target.value})
+                        setNewStaff({ ...newStaff, assignedLab: e.target.value })
                         if (fieldErrors.assignedLab) {
-                          setFieldErrors(prev => ({...prev, assignedLab: ''}))
+                          setFieldErrors(prev => ({ ...prev, assignedLab: '' }))
                         }
                       }}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.assignedLab ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${fieldErrors.assignedLab ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        }`}
                     >
                       <option value="">Select Lab (Optional)</option>
                       {labs.filter(lab => lab.isActive).map(lab => (
@@ -3128,7 +3062,7 @@ const AdminDashboard = () => {
                       Lab assignment is required for Local Admin role
                     </p>
                   </div>
-                  
+
                   {/* Password Update Section */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Update Password (Optional)</label>
@@ -3138,7 +3072,7 @@ const AdminDashboard = () => {
                         <input
                           type="password"
                           value={newStaff.password}
-                          onChange={(e) => setNewStaff({...newStaff, password: e.target.value})}
+                          onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                           placeholder="Leave empty to keep current password"
                         />
@@ -3149,7 +3083,7 @@ const AdminDashboard = () => {
                           <input
                             type="password"
                             value={newStaff.confirmPassword}
-                            onChange={(e) => setNewStaff({...newStaff, confirmPassword: e.target.value})}
+                            onChange={(e) => setNewStaff({ ...newStaff, confirmPassword: e.target.value })}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                             placeholder="Confirm new password"
                           />
@@ -3159,7 +3093,7 @@ const AdminDashboard = () => {
                     <p className="text-xs text-gray-500 mt-1">Leave password fields empty to keep the current password</p>
                   </div>
                 </div>
-                
+
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
                     onClick={() => setShowEditStaffModal(false)}
@@ -3191,9 +3125,7 @@ const AdminDashboard = () => {
     )
   }
 
-  const ViewBookings = () => <AdminBookings />
 
-  const ReportsAnalytics = () => <AdminReports />
 
   const SettingsPage = () => (
     <PlaceholderPage
@@ -3225,13 +3157,13 @@ const AdminDashboard = () => {
       userEmail="admin@labmate360.com"
     >
       <Routes>
-        <Route path="/" element={<DashboardOverview />} />
+        <Route path="/" element={<AdminOverview />} />
         <Route path="/tests" element={<ManageTests />} />
         <Route path="/labs" element={<ManageLabs />} />
         <Route path="/users" element={<ManageUsers />} />
-        <Route path="/bookings" element={<ViewBookings />} />
-        <Route path="/reports" element={<ReportsAnalytics />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/bookings" element={<AdminBookings />} />
+        <Route path="/reports" element={<AdminReports />} />
+        <Route path="/settings" element={<AdminSettings />} />
         <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
       </Routes>
     </DashboardLayout>

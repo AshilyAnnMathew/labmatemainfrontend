@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
-import { 
-  Calendar, 
-  Clock, 
-  User, 
-  CreditCard, 
-  CheckCircle, 
+import { useState, useEffect, Fragment } from 'react'
+import {
+  Calendar,
+  Clock,
+  User,
+  CreditCard,
+  CheckCircle,
   AlertCircle,
   Eye,
   MapPin,
@@ -46,8 +46,11 @@ const AdminBookings = () => {
 
   useEffect(() => {
     fetchBookings()
-    fetchLabs()
   }, [currentPage, filterStatus, filterLab, filterDate])
+
+  useEffect(() => {
+    fetchLabs()
+  }, [])
 
   const fetchLabs = async () => {
     try {
@@ -62,31 +65,31 @@ const AdminBookings = () => {
     try {
       setLoading(true)
       setError('')
-      
+
       // Build query parameters
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: limit.toString()
       })
-      
+
       if (filterStatus !== 'all') {
         params.append('status', filterStatus)
       }
-      
+
       if (filterLab !== 'all') {
         params.append('labId', filterLab)
       }
-      
+
       if (filterDate) {
         params.append('date', filterDate)
       }
-      
+
       if (searchTerm) {
         params.append('search', searchTerm)
       }
 
       const response = await api.bookingAPI.getAdminBookings(params.toString())
-      
+
       if (response.success) {
         setBookings(response.data || [])
         setTotalPages(response.pagination?.pages || 1)
@@ -102,8 +105,11 @@ const AdminBookings = () => {
   }
 
   const handleSearch = () => {
-    setCurrentPage(1)
-    fetchBookings()
+    if (currentPage === 1) {
+      fetchBookings()
+    } else {
+      setCurrentPage(1)
+    }
   }
 
   const handleStatusUpdate = async (bookingId, newStatus) => {
@@ -122,7 +128,7 @@ const AdminBookings = () => {
       if (result.isConfirmed) {
         await api.bookingAPI.updateBookingStatus(bookingId, { status: newStatus })
         await fetchBookings()
-        
+
         Swal.fire({
           icon: 'success',
           title: 'Updated!',
@@ -156,7 +162,7 @@ const AdminBookings = () => {
       if (result.isConfirmed) {
         await api.bookingAPI.deleteBooking(booking._id)
         await fetchBookings()
-        
+
         Swal.fire({
           icon: 'success',
           title: 'Deleted!',
@@ -198,6 +204,14 @@ const AdminBookings = () => {
     return timeString
   }
 
+  const formatAddress = (address) => {
+    if (!address) return 'N/A'
+    if (typeof address === 'string') return address
+    return `${address.street || ''}, ${address.city || ''}, ${address.state || ''} ${address.zipCode || ''}, ${address.country || ''}`
+      .replace(/^[,\s]+|[,\s]+$/g, '') // Remove leading/trailing commas/spaces
+      .replace(/,,\s*/g, ', ') // Remove double commas
+  }
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'confirmed': return 'bg-green-100 text-green-800'
@@ -219,11 +233,11 @@ const AdminBookings = () => {
   }
 
   const filteredBookings = bookings.filter(booking => {
-    const matchesSearch = !searchTerm || 
+    const matchesSearch = !searchTerm ||
       `${booking.userId?.firstName} ${booking.userId?.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.userId?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.labId?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-    
+
     return matchesSearch
   })
 
@@ -355,8 +369,8 @@ const AdminBookings = () => {
                 </tr>
               ) : (
                 filteredBookings.map((booking) => (
-                  <>
-                    <tr key={booking._id} className="hover:bg-gray-50">
+                  <Fragment key={booking._id}>
+                    <tr className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
@@ -439,7 +453,7 @@ const AdminBookings = () => {
                         </div>
                       </td>
                     </tr>
-                    
+
                     {/* Expanded Row */}
                     {expandedBookings.has(booking._id) && (
                       <tr>
@@ -474,7 +488,7 @@ const AdminBookings = () => {
                                 </div>
                                 <div className="flex items-center">
                                   <MapPin className="h-4 w-4 mr-2 text-gray-400" />
-                                  <span>{booking.labId?.address}</span>
+                                  <span>{formatAddress(booking.labId?.address)}</span>
                                 </div>
                                 <div className="flex items-center">
                                   <Phone className="h-4 w-4 mr-2 text-gray-400" />
@@ -511,7 +525,7 @@ const AdminBookings = () => {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))
               )}
             </tbody>
@@ -599,7 +613,7 @@ const AdminBookings = () => {
                 <h4 className="font-medium text-gray-900 mb-3">Lab Information</h4>
                 <div className="space-y-2 text-sm">
                   <div><strong>Lab:</strong> {selectedBooking.labId?.name}</div>
-                  <div><strong>Address:</strong> {selectedBooking.labId?.address}</div>
+                  <div><strong>Address:</strong> {formatAddress(selectedBooking.labId?.address)}</div>
                   <div><strong>Contact:</strong> {selectedBooking.labId?.contact}</div>
                   <div><strong>Email:</strong> {selectedBooking.labId?.email || 'N/A'}</div>
                 </div>
@@ -613,7 +627,7 @@ const AdminBookings = () => {
                   <div><strong>Time:</strong> {formatTime(selectedBooking.appointmentTime)}</div>
                   <div><strong>Payment Method:</strong> {selectedBooking.paymentMethod}</div>
                   <div><strong>Total Amount:</strong> ₹{selectedBooking.totalAmount}</div>
-                  <div><strong>Status:</strong> 
+                  <div><strong>Status:</strong>
                     <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedBooking.status)}`}>
                       {selectedBooking.status}
                     </span>
