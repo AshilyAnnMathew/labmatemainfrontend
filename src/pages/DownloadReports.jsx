@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
-import { FileText, Download, Eye, Calendar, TestTube, Brain, Loader2, Search } from 'lucide-react'
+import { FileText, Download, Eye, Calendar, TestTube, Brain, Loader2, Search, Lock, CreditCard, AlertCircle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import jsPDF from 'jspdf'
@@ -199,7 +199,93 @@ Please format your response in a clear, structured manner suitable for a patient
     }
   }, [genAI, formatDate, extractTextFromPDF, listAvailableModels])
 
+  // Handle Payment
+  const handlePayment = async (booking) => {
+    try {
+      // Create Razorpay order
+      const orderResponse = await api.bookingAPI.createOrder(booking._id)
+      const orderData = orderResponse.data
+
+      // Load Razorpay script dynamically if not present
+      const loadScript = (src) => {
+        return new Promise((resolve) => {
+          const script = document.createElement('script')
+          script.src = src
+          script.onload = () => resolve(true)
+          script.onerror = () => resolve(false)
+          document.body.appendChild(script)
+        })
+      }
+
+      await loadScript('https://checkout.razorpay.com/v1/checkout.js')
+
+      const options = {
+        key: 'rzp_test_R79jO6N4F99QLG', // Replace with environment variable in production
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'LabMate360',
+        description: `Payment for Report ID: ${booking._id}`,
+        order_id: orderData.orderId,
+        handler: async function (response) {
+          try {
+            await api.bookingAPI.processPayment(booking._id, {
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature
+            })
+
+            // Refresh bookings to update status
+            fetchBookings()
+            alert('Payment Successful! Report is now unlocked.')
+          } catch (err) {
+            console.error('Payment verification failed:', err)
+            alert('Payment verification failed. Please contact support.')
+          }
+        },
+        prefill: {
+          name: `${user?.firstName} ${user?.lastName}`,
+          email: user?.email,
+          contact: user?.phone
+        },
+        theme: {
+          color: '#2563eb'
+        }
+      }
+
+      const rzp = new window.Razorpay(options)
+      rzp.open()
+    } catch (err) {
+      console.error('Payment initialization failed:', err)
+      alert('Failed to initialize payment: ' + (err.message || 'Unknown error'))
+    }
+  }
+
+  const handleSecureDownload = async (booking) => {
+    try {
+      const blob = await api.bookingAPI.downloadReport(booking._id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      // Use a generic name or try to extract from headers if sophisticated
+      a.download = `LabReport_${booking._id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (err) {
+      console.error('Download failed:', err);
+      alert('Failed to download report. ' + err.message);
+    }
+  }
+
   const downloadResultsPdf = useCallback((booking) => {
+    // This function generates a PDF from client-side data (testResults)
+    // Checks for payment before allowing generation
+    if (booking.paymentStatus !== 'completed') {
+      alert('Please complete payment to download the report.');
+      return;
+    }
+
     try {
       console.log('Starting PDF generation for booking:', booking._id)
 
@@ -612,7 +698,9 @@ Please format your response in a clear, structured manner suitable for a patient
 
   // Filter and sort bookings
   const filteredBookings = useMemo(() => {
-    let result = [...bookings].sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate));
+    let result = [...bookings]
+      .filter(b => new Date(b.appointmentDate).getFullYear() !== 2028)
+      .sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate));
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -697,30 +785,54 @@ Please format your response in a clear, structured manner suitable for a patient
                 </p>
 
                 <div className="flex flex-wrap gap-3">
-                  {Array.isArray(mostRecentBooking.testResults) && mostRecentBooking.testResults.length > 0 && (
+                  {mostRecentBooking.paymentStatus === 'completed' ? (
                     <>
-                      <button
-                        onClick={() => downloadResultsPdf(mostRecentBooking)}
-                        className="bg-white text-primary-700 hover:bg-gray-50 px-4 py-2 rounded-lg font-medium flex items-center transition-colors shadow-sm"
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Download PDF
-                      </button>
+                      {Array.isArray(mostRecentBooking.testResults) && mostRecentBooking.testResults.length > 0 && (
+                        <>
+                          <button
+                            onClick={() => downloadResultsPdf(mostRecentBooking)}
+                            className="bg-white text-primary-700 hover:bg-gray-50 px-4 py-2 rounded-lg font-medium flex items-center transition-colors shadow-sm"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download Results PDF
+                          </button>
 
-                      <button
-                        onClick={() => analyzeResultsWithAI(mostRecentBooking)}
-                        disabled={analyzing[mostRecentBooking._id]}
-                        className="bg-primary-500/30 hover:bg-primary-500/40 text-white border border-white/20 px-4 py-2 rounded-lg font-medium flex items-center transition-colors backdrop-blur-sm"
-                      >
-                        {analyzing[mostRecentBooking._id] ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                          <Brain className="h-4 w-4 mr-2" />
-                        )}
-                        AI Analysis
-                      </button>
+                          <button
+                            onClick={() => analyzeResultsWithAI(mostRecentBooking)}
+                            disabled={analyzing[mostRecentBooking._id]}
+                            className="bg-primary-500/30 hover:bg-primary-500/40 text-white border border-white/20 px-4 py-2 rounded-lg font-medium flex items-center transition-colors backdrop-blur-sm"
+                          >
+                            {analyzing[mostRecentBooking._id] ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Brain className="h-4 w-4 mr-2" />
+                            )}
+                            AI Analysis
+                          </button>
+                        </>
+                      )}
+                      {/* If original file exists, allow secure download */}
+                      {mostRecentBooking.reportFile && (
+                        <button
+                          onClick={() => handleSecureDownload(mostRecentBooking)}
+                          className="bg-white text-primary-700 hover:bg-gray-50 px-4 py-2 rounded-lg font-medium flex items-center transition-colors shadow-sm"
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          Original Lab Report
+                        </button>
+                      )}
                     </>
+                  ) : (
+                    // Payment Pending State
+                    <button
+                      onClick={() => handlePayment(mostRecentBooking)}
+                      className="bg-yellow-500 text-white hover:bg-yellow-600 px-4 py-2 rounded-lg font-medium flex items-center transition-colors shadow-sm animate-pulse"
+                    >
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Pay Now to Unlock Report
+                    </button>
                   )}
+
                   <button
                     onClick={() => setSelected(mostRecentBooking)}
                     className="text-white/80 hover:text-white px-4 py-2 font-medium flex items-center transition-colors"
@@ -786,47 +898,59 @@ Please format your response in a clear, structured manner suitable for a patient
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center justify-end space-x-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                          {b.reportFile ? (
-                            <a
-                              href={`http://localhost:5000/${b.reportFile}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-gray-400 hover:text-primary-600 p-2 hover:bg-primary-50 rounded-lg transition-colors border border-transparent hover:border-primary-100"
-                              title="Download Original Report"
+                        <div className="flex items-center justify-end space-x-2">
+                          {b.paymentStatus === 'pending' ? (
+                            <button
+                              onClick={() => handlePayment(b)}
+                              className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full shadow-sm text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
                             >
-                              <Download className="h-4 w-4" />
-                            </a>
-                          ) : null}
-
-                          {Array.isArray(b.testResults) && b.testResults.length > 0 && (
+                              <Lock className="h-3 w-3 mr-1" />
+                              Pay & Unlock
+                            </button>
+                          ) : (
+                            // Paid: Show Actions
                             <>
-                              <button
-                                onClick={() => analyzeResultsWithAI(b)}
-                                disabled={analyzing[b._id]}
-                                className="text-purple-400 hover:text-purple-600 p-2 hover:bg-purple-50 rounded-lg transition-colors border border-transparent hover:border-purple-100"
-                                title="AI Analysis"
-                              >
-                                {analyzing[b._id] ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Brain className="h-4 w-4" />
-                                )}
-                              </button>
-                              <button
-                                onClick={() => downloadResultsPdf(b)}
-                                className="text-gray-400 hover:text-primary-600 p-2 hover:bg-primary-50 rounded-lg transition-colors border border-transparent hover:border-primary-100"
-                                title="Download PDF"
-                              >
-                                <FileText className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => setSelected(b)}
-                                className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors border border-transparent hover:border-gray-200"
-                                title="View Details"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </button>
+                              {b.reportFile && (
+                                <button
+                                  onClick={() => handleSecureDownload(b)}
+                                  className="text-gray-400 hover:text-primary-600 p-2 hover:bg-primary-50 rounded-lg transition-colors border border-transparent hover:border-primary-100"
+                                  title="Download Original Report"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </button>
+                              )}
+
+                              {/* Results & AI - Only if results exist (effectively handles empty/redacted case) */}
+                              {Array.isArray(b.testResults) && b.testResults.length > 0 && (
+                                <>
+                                  <button
+                                    onClick={() => analyzeResultsWithAI(b)}
+                                    disabled={analyzing[b._id]}
+                                    className="text-purple-400 hover:text-purple-600 p-2 hover:bg-purple-50 rounded-lg transition-colors border border-transparent hover:border-purple-100"
+                                    title="AI Analysis"
+                                  >
+                                    {analyzing[b._id] ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Brain className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => downloadResultsPdf(b)}
+                                    className="text-gray-400 hover:text-primary-600 p-2 hover:bg-primary-50 rounded-lg transition-colors border border-transparent hover:border-primary-100"
+                                    title="Download PDF"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => setSelected(b)}
+                                    className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors border border-transparent hover:border-gray-200"
+                                    title="View Details"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+                                </>
+                              )}
                             </>
                           )}
                         </div>
@@ -846,7 +970,8 @@ Please format your response in a clear, structured manner suitable for a patient
             </div>
           )}
         </>
-      )}
+      )
+      }
 
 
       {

@@ -710,6 +710,54 @@ export const bookingAPI = {
     }
   },
 
+  // Download secure report
+  downloadReport: async (bookingId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/download-report`, {
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`
+        }
+      });
+
+      if (!response.ok) {
+        // Try to parse error message if possible
+        const errorText = await response.text();
+        let errorMessage = 'Failed to download report';
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.message || errorMessage;
+        } catch (e) {
+          // response was not JSON
+        }
+        throw new Error(errorMessage);
+      }
+
+      return await response.blob();
+    } catch (error) {
+      console.error('Error downloading report:', error);
+      throw error;
+    }
+  },
+
+  // Get latest vitals
+  getLatestVitals: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/bookings/latest-vitals`, {
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch vitals');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error fetching vitals:', error);
+      throw error;
+    }
+  },
+
 
 
   // Upload report for booking
@@ -1074,6 +1122,27 @@ export const localAdminAPI = {
       return data;
     } catch (error) {
       console.error('Error fetching lab staff:', error);
+      throw error;
+    }
+  },
+
+  // Get dashboard statistics
+  getDashboardStats: async (labId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/bookings/lab/${labId}/stats`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch dashboard stats');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
       throw error;
     }
   },

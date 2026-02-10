@@ -111,7 +111,7 @@ const Profile = () => {
                                         src={getProfileImageUrl(user.profileImage)}
                                         alt="Profile"
                                         className="w-full h-full object-cover"
-                                        onError={(e) => { e.target.src = 'https://via.placeholder.com/150?text=User' }}
+                                        onError={(e) => { e.target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOTA5MDkwIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTIwIDIxdi0yYTQgNCAwIDAgMC00LTRINGE0IDQgMCAwIDAtNCA0djIiPjwvcGF0aD48Y2lyY2xlIGN4PSIxMiIgY3k9IjciIHI9IjQiPjwvY2lyY2xlPjwvc3ZnPg==' }}
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-primary-100 text-primary-600">

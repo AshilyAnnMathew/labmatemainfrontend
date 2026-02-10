@@ -23,7 +23,11 @@ const DashboardOverview = () => {
         pendingReports: 0,
         completedReports: 0,
         latestRespiratoryScore: null,
-        latestMentalScore: null
+        latestMentalScore: null,
+        vitals: {
+            bloodPressure: null,
+            bloodSugar: null
+        }
     })
     const [recentBookings, setRecentBookings] = useState([])
     const [loading, setLoading] = useState(true)
@@ -69,12 +73,24 @@ const DashboardOverview = () => {
                     console.error("Failed to fetch mental stats", e);
                 }
 
+                // Fetch Vitals (BP, Sugar)
+                let vitalsData = { bloodPressure: null, bloodSugar: null };
+                try {
+                    const vitalsResponse = await bookingAPI.getLatestVitals();
+                    if (vitalsResponse.success && vitalsResponse.data) {
+                        vitalsData = vitalsResponse.data;
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch vitals", e);
+                }
+
                 setStats({
                     totalBookings: total,
                     pendingReports: pending,
                     completedReports: completed,
-                    latestRespiratoryScore,
-                    latestMentalScore
+                    latestRespiratoryScore: latestRespiratoryScore, // Ensure variable is used
+                    latestMentalScore: latestMentalScore, // Ensure variable is used
+                    vitals: vitalsData
                 })
 
                 // Get recent 3 bookings
@@ -142,6 +158,70 @@ const DashboardOverview = () => {
                     <div>
                         <p className="text-sm font-medium text-gray-500">Completed Reports</p>
                         <p className="text-2xl font-bold text-gray-900">{stats.completedReports}</p>
+                    </div>
+                </div>
+
+                {/* Vitals Section */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-semibold text-gray-900">Recent Vitals</h2>
+                        <span className="text-sm text-gray-500">From latest reports</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Blood Pressure Card */}
+                        <div className="bg-red-50 rounded-lg p-4 border border-red-100">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2 text-red-700 font-medium">
+                                    <Activity className="h-5 w-5" />
+                                    <span>Blood Pressure</span>
+                                </div>
+                                {stats.vitals?.bloodPressure?.date && (
+                                    <span className="text-xs text-red-600 bg-red-100 px-2 py-1 rounded">
+                                        {new Date(stats.vitals.bloodPressure.date).toLocaleDateString()}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="mt-2">
+                                {stats.vitals?.bloodPressure ? (
+                                    <div>
+                                        <span className="text-2xl font-bold text-gray-900">{stats.vitals.bloodPressure.value}</span>
+                                        <span className="text-sm text-gray-500 ml-1">{stats.vitals.bloodPressure.unit}</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-gray-500 text-sm">No recent data available</span>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Blood Sugar Card */}
+                        <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2 text-blue-700 font-medium">
+                                    <Activity className="h-5 w-5" />
+                                    <span>Blood Sugar</span>
+                                </div>
+                                {stats.vitals?.bloodSugar?.date && (
+                                    <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                                        {new Date(stats.vitals.bloodSugar.date).toLocaleDateString()}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="mt-2">
+                                {stats.vitals?.bloodSugar ? (
+                                    <div>
+                                        <span className="text-2xl font-bold text-gray-900">{stats.vitals.bloodSugar.value}</span>
+                                        <span className="text-sm text-gray-500 ml-1">{stats.vitals.bloodSugar.unit}</span>
+                                        {stats.vitals.bloodSugar.type && (
+                                            <div className="text-xs text-blue-600 mt-1">
+                                                {stats.vitals.bloodSugar.type}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <span className="text-gray-500 text-sm">No recent data available</span>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
