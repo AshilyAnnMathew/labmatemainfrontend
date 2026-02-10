@@ -11,7 +11,8 @@ import {
   User,
   LayoutDashboard,
   Wind,
-  Brain
+  Brain,
+  Activity
 } from 'lucide-react'
 import DashboardLayout from '../layouts/DashboardLayout'
 import DashboardOverview from './DashboardOverview'
@@ -25,6 +26,7 @@ import Support from './Support'
 import RespiratoryWellness from './RespiratoryWellness'
 import MentalWellness from './MentalWellness'
 import ProfileCompletionModal from '../components/ProfileCompletionModal'
+import HealthInsights from './HealthInsights'
 import { useAuth } from '../contexts/AuthContext'
 
 const UserDashboard = () => {
@@ -142,6 +144,11 @@ const UserDashboard = () => {
       path: '/user/dashboard',
       label: 'Overview',
       icon: LayoutDashboard
+    },
+    {
+      path: '/user/dashboard/health-insights',
+      label: 'Health Insights',
+      icon: Activity
     },
     {
       path: '/user/dashboard/respiratory',
@@ -482,6 +489,7 @@ Remember: Only respond if this is health/medical/laboratory related. If not, pol
       >
         <Routes>
           <Route path="/" element={<DashboardOverview />} />
+          <Route path="health-insights" element={<HealthInsights />} />
           <Route path="respiratory" element={<RespiratoryWellness />} />
           <Route path="mental-wellness" element={<MentalWellness />} />
           <Route path="book-tests" element={<BookTests />} />

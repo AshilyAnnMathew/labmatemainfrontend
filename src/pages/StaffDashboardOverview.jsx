@@ -113,6 +113,13 @@ const StaffDashboardOverview = ({ assignedLab }) => {
                     color={{ bg: 'bg-orange-50', icon: 'text-orange-600', text: 'text-orange-600' }}
                     subtext="Results waiting for upload"
                 />
+                <StatCard
+                    title="Critical Alerts"
+                    value={stats.criticalResults || 0}
+                    icon={AlertTriangle}
+                    color={{ bg: 'bg-red-50', icon: 'text-red-600', text: 'text-red-600' }}
+                    subtext="Abnormal vitals (24h)"
+                />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -131,8 +138,8 @@ const StaffDashboardOverview = ({ assignedLab }) => {
                                     <div key={booking._id} className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between">
                                         <div className="flex items-center space-x-4">
                                             <div className={`h-10 w-10 rounded-full flex items-center justify-center ${booking.status === 'confirmed' ? 'bg-green-100 text-green-600' :
-                                                    booking.status === 'sample_collected' ? 'bg-blue-100 text-blue-600' :
-                                                        'bg-gray-100 text-gray-600'
+                                                booking.status === 'sample_collected' ? 'bg-blue-100 text-blue-600' :
+                                                    'bg-gray-100 text-gray-600'
                                                 }`}>
                                                 <Calendar className="h-5 w-5" />
                                             </div>
@@ -146,9 +153,9 @@ const StaffDashboardOverview = ({ assignedLab }) => {
                                             </div>
                                         </div>
                                         <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                                                booking.status === 'sample_collected' ? 'bg-blue-100 text-blue-800' :
-                                                    booking.status === 'report_uploaded' ? 'bg-purple-100 text-purple-800' :
-                                                        'bg-gray-100 text-gray-800'
+                                            booking.status === 'sample_collected' ? 'bg-blue-100 text-blue-800' :
+                                                booking.status === 'report_uploaded' ? 'bg-purple-100 text-purple-800' :
+                                                    'bg-gray-100 text-gray-800'
                                             }`}>
                                             {booking.status.replace('_', ' ')}
                                         </span>

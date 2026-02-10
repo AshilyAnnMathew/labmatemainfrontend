@@ -9,7 +9,9 @@ import {
   Clock,
   Printer,
   FileImage,
-  X
+  X,
+  Activity,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
@@ -245,6 +247,33 @@ const StaffReports = () => {
     </div>
   );
 
+  // Fetch patient vitals when a report is selected
+  const [patientVitals, setPatientVitals] = useState([]);
+
+  useEffect(() => {
+    const fetchVitals = async () => {
+      if (selectedReport && selectedReport.userId) {
+        try {
+          // Use the ID from the user object if populated, otherwise use userId directly if it's just an ID string
+          const userId = selectedReport.userId._id || selectedReport.userId;
+          const response = await api.vitalsAPI.getPatientVitals(userId);
+          if (response.success) {
+            setPatientVitals(response.data);
+          }
+        } catch (error) {
+          console.error("Error fetching patient vitals", error);
+          setPatientVitals([]);
+        }
+      } else {
+        setPatientVitals([]);
+      }
+    };
+
+    if (showDetailsModal && selectedReport) {
+      fetchVitals();
+    }
+  }, [showDetailsModal, selectedReport]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -294,6 +323,38 @@ const StaffReports = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Patient Vitals History */}
+              {patientVitals.length > 0 && (
+                <div>
+                  <h4 className="font-medium mb-3 flex items-center text-rose-700">
+                    <Activity className="w-4 h-4 mr-2" />
+                    Recent Vitals
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {patientVitals.slice(0, 3).map((vital, idx) => (
+                      <div key={idx} className={`p-3 rounded-lg border ${vital.status === 'abnormal' ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
+                        <div className="text-xs text-gray-500 mb-1">{new Date(vital.createdAt).toLocaleString()}</div>
+                        <div className="flex justify-between items-end">
+                          <div>
+                            <div className="text-lg font-bold text-gray-900">{vital.heartRate} <span className="text-xs font-normal text-gray-500">BPM</span></div>
+                            <div className="text-xs text-gray-500">Heart Rate</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-gray-900">{vital.spo2}%</div>
+                            <div className="text-xs text-gray-500">SpO2</div>
+                          </div>
+                        </div>
+                        {vital.status === 'abnormal' && (
+                          <div className="mt-2 text-xs text-amber-700 font-medium flex items-center">
+                            <AlertCircle className="w-3 h-3 mr-1" /> Abnormal
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Tests List */}
               <div>

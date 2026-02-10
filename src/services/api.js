@@ -1591,6 +1591,90 @@ export const checkEmailExists = async (email) => {
   }
 };
 
+// Vitals API for PPG and health monitoring
+export const vitalsAPI = {
+  // Process raw PPG signal
+  processSignal: async (signalData) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/vitals/process`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(signalData)
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to process vitals');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error processing vitals:', error);
+      throw error;
+    }
+  },
+
+  // Get user's vital history
+  getHistory: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/vitals/history`, {
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch vital history');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error fetching vital history:', error);
+      throw error;
+    }
+  },
+
+  // Get latest vital reading
+  getLatest: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/vitals/latest`, {
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        // Return null if no readings found (404)
+        if (response.status === 404) return { success: true, data: null };
+        throw new Error(data.message || 'Failed to fetch latest vital');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error fetching latest vital:', error);
+      throw error;
+    }
+  },
+
+  // Get vitals for a specific patient (Staff/Admin)
+  getPatientVitals: async (userId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/vitals/user/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch patient vitals');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error fetching patient vitals:', error);
+      throw error;
+    }
+  }
+};
+
 // Google OAuth API
 export const googleAuthAPI = {
   // Initiate Google OAuth flow
@@ -1727,6 +1811,26 @@ export const mentalWellnessAPI = {
   }
 };
 
+export const predictionAPI = {
+  getRiskPrediction: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/predictions/risk`, {
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch risk prediction');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error fetching risk prediction:', error);
+      throw error;
+    }
+  }
+};
+
 export default {
   authAPI,
   verificationAPI,
@@ -1742,6 +1846,7 @@ export default {
   googleAuthAPI,
   respiratoryAPI,
   mentalWellnessAPI,
+  predictionAPI,
   setAuthToken,
   getAuthToken,
   removeAuthToken,

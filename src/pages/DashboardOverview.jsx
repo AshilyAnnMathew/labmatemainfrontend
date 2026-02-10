@@ -11,10 +11,13 @@ import {
     TrendingUp,
     AlertCircle,
     Wind,
-    Brain
+    Brain,
+    Heart,
+    X
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { bookingAPI, respiratoryAPI, mentalWellnessAPI } from '../services/api'
+import { bookingAPI, respiratoryAPI, mentalWellnessAPI, vitalsAPI } from '../services/api'
+import PPGMonitor from '../components/PPG/PPGMonitor'
 
 const DashboardOverview = () => {
     const { user } = useAuth()
@@ -32,6 +35,7 @@ const DashboardOverview = () => {
     const [recentBookings, setRecentBookings] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
+    const [showPPGModal, setShowPPGModal] = useState(false)
 
     useEffect(() => {
         fetchDashboardData()
@@ -73,13 +77,21 @@ const DashboardOverview = () => {
                     console.error("Failed to fetch mental stats", e);
                 }
 
-                // Fetch Vitals (BP, Sugar)
-                let vitalsData = { bloodPressure: null, bloodSugar: null };
+                // Fetch Vitals (BP, Sugar, PPG)
+                let vitalsData = { bloodPressure: null, bloodSugar: null, ppg: null };
                 try {
                     const vitalsResponse = await bookingAPI.getLatestVitals();
                     if (vitalsResponse.success && vitalsResponse.data) {
-                        vitalsData = vitalsResponse.data;
+                        vitalsData = { ...vitalsData, ...vitalsResponse.data };
                     }
+                    // Fetch latest PPG vital
+                    try {
+                        const ppgResponse = await vitalsAPI.getLatest();
+                        if (ppgResponse.success && ppgResponse.data) {
+                            vitalsData.ppg = ppgResponse.data;
+                        }
+                    } catch (e) { console.error("PPG Fetch Error", e); }
+
                 } catch (e) {
                     console.error("Failed to fetch vitals", e);
                 }
@@ -88,8 +100,8 @@ const DashboardOverview = () => {
                     totalBookings: total,
                     pendingReports: pending,
                     completedReports: completed,
-                    latestRespiratoryScore: latestRespiratoryScore, // Ensure variable is used
-                    latestMentalScore: latestMentalScore, // Ensure variable is used
+                    latestRespiratoryScore: latestRespiratoryScore,
+                    latestMentalScore: latestMentalScore,
                     vitals: vitalsData
                 })
 
@@ -102,6 +114,13 @@ const DashboardOverview = () => {
         } finally {
             setLoading(false)
         }
+    }
+
+    const handlePPGComplete = (result) => {
+        // Refresh dashboard data to show new vitals
+        fetchDashboardData();
+        // Optional: Close modal after delay or let user close it
+        // setShowPPGModal(false); 
     }
 
     if (loading) {
@@ -120,7 +139,7 @@ const DashboardOverview = () => {
     }
 
     return (
-        <div className="w-full h-full">
+        <div className="w-full h-full relative">
             {/* Welcome Section */}
             <div className="mb-8">
                 <h1 className="text-2xl font-bold text-gray-900">
@@ -162,12 +181,49 @@ const DashboardOverview = () => {
                 </div>
 
                 {/* Vitals Section */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:col-span-3">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-semibold text-gray-900">Recent Vitals</h2>
-                        <span className="text-sm text-gray-500">From latest reports</span>
+                        <button
+                            onClick={() => setShowPPGModal(true)}
+                            className="text-sm bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 transition flex items-center"
+                        >
+                            <Activity className="w-4 h-4 mr-1.5" />
+                            Measure Now
+                        </button>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Heart Rate / SpO2 Card (PPG) */}
+                        <div className="bg-rose-50 rounded-lg p-4 border border-rose-100">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2 text-rose-700 font-medium">
+                                    <Heart className="h-5 w-5" />
+                                    <span>Heart Rate & SpO2</span>
+                                </div>
+                                {stats.vitals?.ppg?.createdAt && (
+                                    <span className="text-xs text-rose-600 bg-rose-100 px-2 py-1 rounded">
+                                        {new Date(stats.vitals.ppg.createdAt).toLocaleDateString()}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="mt-2">
+                                {stats.vitals?.ppg ? (
+                                    <div className="flex gap-4">
+                                        <div>
+                                            <span className="text-2xl font-bold text-gray-900">{stats.vitals.ppg.heartRate}</span>
+                                            <span className="text-sm text-gray-500 ml-1">BPM</span>
+                                        </div>
+                                        <div className="border-l border-rose-200 pl-4">
+                                            <span className="text-2xl font-bold text-gray-900">{stats.vitals.ppg.spo2}</span>
+                                            <span className="text-sm text-gray-500 ml-1">%</span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <span className="text-gray-500 text-sm">No recent measurement</span>
+                                )}
+                            </div>
+                        </div>
+
                         {/* Blood Pressure Card */}
                         <div className="bg-red-50 rounded-lg p-4 border border-red-100">
                             <div className="flex items-center justify-between mb-2">
@@ -363,6 +419,21 @@ const DashboardOverview = () => {
                     </div>
                 </div>
             </div>
+
+            {/* PPG Modal */}
+            {showPPGModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden relative">
+                        <button
+                            onClick={() => setShowPPGModal(false)}
+                            className="absolute top-3 right-3 p-1 rounded-full bg-white/80 hover:bg-gray-100 text-gray-500 z-10"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                        <PPGMonitor onComplete={handlePPGComplete} />
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
