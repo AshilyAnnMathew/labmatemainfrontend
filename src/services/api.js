@@ -1831,6 +1831,27 @@ export const predictionAPI = {
   }
 };
 
+
+export const recommendationAPI = {
+  getRecommendations: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/recommendations`, {
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch recommendations');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error fetching recommendations:', error);
+      throw error;
+    }
+  }
+};
+
 export default {
   authAPI,
   verificationAPI,
@@ -1847,6 +1868,7 @@ export default {
   respiratoryAPI,
   mentalWellnessAPI,
   predictionAPI,
+  recommendationAPI,
   setAuthToken,
   getAuthToken,
   removeAuthToken,

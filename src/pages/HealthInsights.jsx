@@ -12,27 +12,45 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 
+import RecommendedTests from '../components/RecommendedTests';
+
 const HealthInsights = () => {
     const [loading, setLoading] = useState(true);
     const [prediction, setPrediction] = useState(null);
+    const [recommendations, setRecommendations] = useState([]);
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        fetchPrediction();
+        fetchData();
     }, []);
 
-    const fetchPrediction = async () => {
+    const fetchData = async () => {
         try {
             setLoading(true);
             setError(null);
-            const response = await api.predictionAPI.getRiskPrediction();
-            if (response.success) {
-                setPrediction(response.data);
+
+            // Parallel fetch for prediction and recommendations
+            const [predResponse, recResponse] = await Promise.allSettled([
+                api.predictionAPI.getRiskPrediction(),
+                api.recommendationAPI.getRecommendations()
+            ]);
+
+            // Handle Risk Prediction
+            if (predResponse.status === 'fulfilled' && predResponse.value.success) {
+                setPrediction(predResponse.value.data);
             } else {
-                setError('Could not generate health insights at this time.');
+                // If prediction fails, we might still want to show recommendations if available, 
+                // but usually they rely on similar data. For now, set error if prediction fails.
+                throw new Error(predResponse.reason || 'Could not generate health insights.');
             }
+
+            // Handle Recommendations (Optional, don't fail whole page if this fails)
+            if (recResponse.status === 'fulfilled' && recResponse.value.success) {
+                setRecommendations(recResponse.value.recommendations);
+            }
+
         } catch (err) {
-            console.error('Error fetching prediction:', err);
+            console.error('Error fetching data:', err);
             if (err.message && err.message.includes('unavailable')) {
                 setError('The AI Analysis Service is currently unavailable. Please try again later.');
             } else {
@@ -42,6 +60,7 @@ const HealthInsights = () => {
             setLoading(false);
         }
     };
+
 
     const getRiskColor = (level) => {
         switch (level?.toLowerCase()) {
@@ -115,7 +134,7 @@ const HealthInsights = () => {
                         <p className="text-red-600 mt-2 max-w-lg mx-auto">{error}</p>
                     </div>
                     <button
-                        onClick={fetchPrediction}
+                        onClick={fetchData}
                         className="px-4 py-2 bg-white border border-red-300 text-red-700 rounded-lg hover:bg-red-50 font-medium transition shadow-sm"
                     >
                         Try Again
@@ -138,7 +157,7 @@ const HealthInsights = () => {
                     </p>
                 </div>
                 <button
-                    onClick={fetchPrediction}
+                    onClick={fetchData}
                     className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition shadow-sm"
                 >
                     <Activity className="w-4 h-4 mr-2 text-blue-600" />
@@ -228,6 +247,9 @@ const HealthInsights = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Recommended Tests Section */}
+            <RecommendedTests recommendations={recommendations} loading={loading} />
 
             {/* Input Data Summary (Metrics) */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">

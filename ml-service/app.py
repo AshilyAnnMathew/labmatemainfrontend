@@ -15,23 +15,6 @@ def butter_bandpass_filter(data, lowcut, highcut, fs, order=2):
         high = highcut / nyq
         
         # Simple IIR filter implementation (Butterworth approximation)
-        # Pre-calculated coefficients for 2nd order Butterworth bandpass 0.5-5Hz at 30Hz
-        # If fs varies significantly, this approach is less accurate but sufficient for POC.
-        # Alternatively, we can use a simpler Moving Average approach.
-        
-        # Let's use a robust Moving Average Bandpass to avoid scipy dependency
-        # High-pass = Original - Low-pass (0.5Hz)
-        # Low-pass = Low-pass (5Hz)
-        
-        # Moving average window sizes
-        # 0.5 Hz -> 2 seconds window -> 2 * fs samples
-        # 5.0 Hz -> 0.2 seconds window -> 0.2 * fs samples
-        
-        # But moving average is not ideal for PPG.
-        # Let's use a simple recursive filter (IIR)
-        # y[n] = a * y[n-1] + (1-a) * x[n] (Low Pass)
-        
-        # Low pass at 5Hz
         dt = 1/fs
         rc = 1/(2*np.pi*5.0)
         alpha_lp = dt/(rc+dt)
@@ -81,38 +64,56 @@ def find_peaks_simple(signal, distance, prominence):
                     
     return np.array(peaks)
 
+
 def process_ppg_signal(data, fs=30):
     try:
         # Convert to numpy array
         sig = np.array(data)
         
         if len(sig) < fs * 2: # Need at least 2 seconds
-             return None, None, 0.0
+             return None, None, 0.0, "Insufficient data length (< 2s)"
 
         # Filter signal (0.5Hz - 5Hz)
         filtered_sig = butter_bandpass_filter(sig, 0.5, 5.0, fs)
         
         # Peak detection
         # Distance between peaks ~0.4s (150 BPM)
-        distance = int(0.4 * fs) 
-        # Prominence threshold
-        prominence = (np.max(filtered_sig) - np.min(filtered_sig)) * 0.1
+        distance = int(0.35 * fs) # Reduced slightly to allow for faster heart rates / irregularities
         
+        # Adaptive Thresholding Approach
+        # 1. First pass: moderate prominence
+        prominence_factor = 0.05 
+        prominence = (np.max(filtered_sig) - np.min(filtered_sig)) * prominence_factor
         peaks = find_peaks_simple(filtered_sig, distance=distance, prominence=prominence)
         
+        # 2. Rescuing: If BPM < 40 or too few peaks, try lower threshold
+        # Calculate BPM tentatively
+        bpm = 0
+        if len(peaks) > 1:
+            peak_intervals = np.diff(peaks) / fs
+            avg_interval = np.mean(peak_intervals)
+            if avg_interval > 0:
+                bpm = 60 / avg_interval
+
+        if len(peaks) < 4 or (bpm < 40 and len(peaks) > 0):
+             logging.info(f"First pass failed (BPM: {bpm}, Peaks: {len(peaks)}). Retrying with lower threshold.")
+             prominence_factor = 0.01 # Very sensitive
+             prominence = (np.max(filtered_sig) - np.min(filtered_sig)) * prominence_factor
+             peaks = find_peaks_simple(filtered_sig, distance=distance, prominence=prominence)
+        
         if len(peaks) < 2:
-            return None, None, 0.0
+            return None, None, 0.0, f"Not enough peaks detected ({len(peaks)})"
 
         # Calculate Heart Rate (BPM)
         peak_intervals = np.diff(peaks) / fs
         avg_interval = np.mean(peak_intervals)
-        if avg_interval == 0: return None, None, 0.0
+        if avg_interval == 0: return None, None, 0.0, "Invalid peak interval"
         
         bpm = 60 / avg_interval
         
         # Filter BPM range
         if bpm < 30 or bpm > 220:
-             return None, None, 0.0
+             return None, None, 0.0, f"BPM out of range ({bpm:.1f})"
         
         # Confidence Score based on regularity
         if len(peak_intervals) > 1:
@@ -136,11 +137,11 @@ def process_ppg_signal(data, fs=30):
         spo2_est = 110 - (25 * ratio) 
         spo2_est = min(100, max(85, spo2_est))
 
-        return bpm, spo2_est, confidence
+        return bpm, spo2_est, confidence, None
 
     except Exception as e:
         logging.error(f"Signal processing error: {e}")
-        return None, None, 0.0
+        return None, None, 0.0, f"Processing error: {str(e)}"
 
 @app.route('/process-ppg', methods=['POST'])
 def process_ppg():
@@ -152,12 +153,12 @@ def process_ppg():
         red_signal = data['red_signal']
         fs = data.get('fs', 30)
 
-        bpm, spo2, confidence = process_ppg_signal(red_signal, fs)
+        bpm, spo2, confidence, error_reason = process_ppg_signal(red_signal, fs)
         
         if bpm is None:
              return jsonify({
                 'success': False,
-                'message': 'Signal quality too low or insufficient data'
+                'message': error_reason or 'Signal quality too low or insufficient data'
             }), 200
 
         return jsonify({
@@ -260,6 +261,118 @@ def predict_risk():
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok', 'service': 'ppg-service', 'time': str(datetime.now())}), 200
+
+@app.route('/recommend-tests', methods=['POST'])
+def recommend_tests():
+    try:
+        data = request.json
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        # Extract features (using defaults if missing)
+        heart_rate = data.get('heartRate', 70)
+        systolic_bp = data.get('systolicBP', 120)
+        diastolic_bp = data.get('diastolicBP', 80)
+        blood_sugar = data.get('bloodSugar', 90)
+        cholesterol = data.get('cholesterol', 180)
+        spo2 = data.get('spo2', 98)
+        
+        recommendations = []
+
+        # 1. SpO2 Rules
+        if spo2 < 95:
+             recommendations.append({
+                 'testName': 'Pulmonary Function Test',
+                 'reason': f'Low Oxygen Saturation ({spo2}%) indicates potential respiratory issues.',
+                 'priority': 'High'
+             })
+             recommendations.append({
+                 'testName': 'Chest X-Ray',
+                 'reason': 'To check for underlying lung conditions affecting oxygen levels.',
+                 'priority': 'Medium'
+             })
+
+        # 2. Heart Rate Rules
+        if heart_rate > 100:
+            recommendations.append({
+                 'testName': 'ECG (Electrocardiogram)',
+                 'reason': f'High Heart Rate (Tachycardia: {heart_rate} BPM) detected.',
+                 'priority': 'High'
+             })
+            recommendations.append({
+                 'testName': 'Thyroid Profile',
+                 'reason': 'Thyroid overactivity can cause high heart rate.',
+                 'priority': 'Medium'
+             })
+        elif heart_rate < 50:
+             recommendations.append({
+                 'testName': 'ECG (Electrocardiogram)',
+                 'reason': f'Low Heart Rate (Bradycardia: {heart_rate} BPM) detected.',
+                 'priority': 'High'
+             })
+
+        # 3. Blood Pressure Rules
+        if systolic_bp > 140 or diastolic_bp > 90:
+            recommendations.append({
+                 'testName': 'Kidney Function Test',
+                 'reason': 'High Blood Pressure can strain kidneys.',
+                 'priority': 'Medium'
+             })
+            recommendations.append({
+                 'testName': 'Lipid Profile',
+                 'reason': 'Hypertension is often linked with high cholesterol.',
+                 'priority': 'High'
+             })
+
+        # 4. Blood Sugar Rules
+        if blood_sugar > 126:
+            recommendations.append({
+                 'testName': 'HbA1c',
+                 'reason': f'High fasting blood sugar ({blood_sugar} mg/dL) suggests diabetes risk.',
+                 'priority': 'High'
+             })
+            recommendations.append({
+                 'testName': 'Urine Analysis',
+                 'reason': 'To check for glucose or ketones in urine.',
+                 'priority': 'Medium'
+             })
+        elif blood_sugar > 100:
+             recommendations.append({
+                 'testName': 'HbA1c',
+                 'reason': 'Pre-diabetic blood sugar levels detected.',
+                 'priority': 'Medium'
+             })
+
+        # 5. Cholesterol Rules
+        if cholesterol > 240:
+             recommendations.append({
+                 'testName': 'Lipid Profile',
+                 'reason': f'High Total Cholesterol ({cholesterol} mg/dL). Detailed breakdown needed.',
+                 'priority': 'High'
+             })
+             recommendations.append({
+                 'testName': 'Liver Function Test',
+                 'reason': 'Liver plays a key role in cholesterol metabolism.',
+                 'priority': 'Medium'
+             })
+        
+        # 6. Combined/Complex Rules
+        if (systolic_bp > 130 or diastolic_bp > 85) and cholesterol > 200:
+             recommendations.append({
+                 'testName': 'Cardiac Risk Markers',
+                 'reason': 'Combined high BP and cholesterol increases cardiovascular risk.',
+                 'priority': 'High'
+             })
+
+        return jsonify({
+            'success': True,
+            'recommendations': recommendations,
+            'timestamp': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        logging.error(f"Recommendation API Error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     # Threaded mode for better performance
