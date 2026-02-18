@@ -53,7 +53,7 @@ const DashboardOverview = () => {
                 // Calculate stats
                 const total = response.pagination ? response.pagination.total : bookings.length
                 const pending = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length
-                const completed = bookings.filter(b => b.status === 'completed').length
+                const completed = bookings.filter(b => b.status === 'completed' || b.status === 'result_published').length
 
                 // Fetch Respiratory Data
                 let latestRespiratoryScore = null;

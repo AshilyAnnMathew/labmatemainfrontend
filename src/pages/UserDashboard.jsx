@@ -12,7 +12,8 @@ import {
   LayoutDashboard,
   Wind,
   Brain,
-  Activity
+  Activity,
+  Heart
 } from 'lucide-react'
 import DashboardLayout from '../layouts/DashboardLayout'
 import DashboardOverview from './DashboardOverview'
@@ -27,6 +28,7 @@ import RespiratoryWellness from './RespiratoryWellness'
 import MentalWellness from './MentalWellness'
 import ProfileCompletionModal from '../components/ProfileCompletionModal'
 import HealthInsights from './HealthInsights'
+import PPGTechnology from './PPGTechnology'
 import { useAuth } from '../contexts/AuthContext'
 
 const UserDashboard = () => {
@@ -189,6 +191,11 @@ const UserDashboard = () => {
       path: '/user/dashboard/nearby-labs',
       label: 'Nearby Labs',
       icon: MapPin
+    },
+    {
+      path: '/user/dashboard/ppg-technology',
+      label: 'PPG Technology',
+      icon: Heart
     },
     {
       path: '/user/dashboard/healthbot',
@@ -498,6 +505,7 @@ Remember: Only respond if this is health/medical/laboratory related. If not, pol
           <Route path="reports" element={<DownloadReports />} />
           <Route path="profile" element={<Profile />} />
           <Route path="nearby-labs" element={<NearbyLabs />} />
+          <Route path="ppg-technology" element={<PPGTechnology />} />
           <Route path="healthbot" element={<HealthBot />} />
           <Route path="support" element={<Support />} />
           <Route path="*" element={<Navigate to="/user/dashboard" replace />} />

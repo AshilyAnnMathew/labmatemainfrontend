@@ -158,10 +158,17 @@ const BookTests = () => {
     try {
       setLoading(true)
 
+      // Fetch full lab details to get descriptions and other fields not included in the list view
+      const response = await labAPI.getLab(lab._id)
+      const fullLabData = response.data
+
       // Debug: Log the lab data structure
-      console.log('Selected lab data:', lab)
-      console.log('Available tests:', lab.availableTests)
-      console.log('Available packages:', lab.availablePackages)
+      console.log('Selected lab data:', fullLabData)
+      console.log('Available tests:', fullLabData.availableTests)
+      console.log('Available packages:', fullLabData.availablePackages)
+
+      // Use the freshly fetched data which has populated descriptions
+      const labToProcess = fullLabData
 
       // The lab data already contains populated test and package objects
       // We just need to extract them properly
@@ -169,8 +176,8 @@ const BookTests = () => {
       let availablePackages = []
 
       // Handle availableTests - could be populated objects or just IDs
-      if (lab.availableTests && lab.availableTests.length > 0) {
-        availableTests = lab.availableTests.map(test => {
+      if (labToProcess.availableTests && labToProcess.availableTests.length > 0) {
+        availableTests = labToProcess.availableTests.map(test => {
           // If test is already a populated object, use it directly
           if (typeof test === 'object' && test._id) {
             return test
@@ -182,8 +189,8 @@ const BookTests = () => {
       }
 
       // Handle availablePackages - could be populated objects or just IDs
-      if (lab.availablePackages && lab.availablePackages.length > 0) {
-        availablePackages = lab.availablePackages.map(packageItem => {
+      if (labToProcess.availablePackages && labToProcess.availablePackages.length > 0) {
+        availablePackages = labToProcess.availablePackages.map(packageItem => {
           // If package is already a populated object, use it directly
           if (typeof packageItem === 'object' && packageItem._id) {
             return packageItem
@@ -200,7 +207,7 @@ const BookTests = () => {
 
       // Update the selected lab with detailed test and package information
       const updatedLab = {
-        ...lab,
+        ...labToProcess,
         availableTestsDetails: availableTests,
         availablePackagesDetails: availablePackages
       }
@@ -687,7 +694,8 @@ const BookTests = () => {
       : 'http://localhost:5000'
 
     // Ensure path doesn't start with slash if we're adding one
-    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath
+    const normalizedPath = imagePath.replace(/\\/g, '/')
+    const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.slice(1) : normalizedPath
 
     return `${baseUrl}/${cleanPath}`
   }
