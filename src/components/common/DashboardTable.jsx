@@ -81,7 +81,7 @@ const DashboardTable = ({
                         ) : (
                             // Data Rows
                             data.map((row, rowIndex) => (
-                                <tr key={row._id || rowIndex} className="hover:bg-gray-50 transition-colors">
+                                <tr key={`${row._id}-${rowIndex}`} className="hover:bg-gray-50 transition-colors">
                                     {columns.map((col, colIndex) => (
                                         <td key={colIndex} className={`px-6 py-4 whitespace-nowrap text-sm text-gray-700 ${col.cellClassName || ''}`}>
                                             {col.render ? col.render(row) : row[col.accessor]}

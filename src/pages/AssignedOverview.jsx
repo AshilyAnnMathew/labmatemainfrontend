@@ -69,6 +69,19 @@ const AssignedOverview = ({ assignedLab }) => {
         }
     };
 
+    const handleCollectSample = async (bookingId) => {
+        try {
+            const res = await api.localAdminAPI.collectSample(bookingId);
+            if (res.success) {
+                alert(`Sample collected! ID: ${res.data.sampleId}`);
+                fetchBookings();
+            }
+        } catch (error) {
+            console.error('Error collecting sample:', error);
+            alert('Failed to collect sample: ' + error.message);
+        }
+    };
+
     const handlePaymentProcess = async (bookingId) => {
         try {
             await api.bookingAPI.processPayment(bookingId);
@@ -160,7 +173,7 @@ const AssignedOverview = ({ assignedLab }) => {
                     )}
                     {row.status === 'confirmed' && (
                         <button
-                            onClick={() => handleStatusUpdate(row._id, 'sample_collected')}
+                            onClick={() => handleCollectSample(row._id)}
                             className="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded border border-purple-200 hover:bg-purple-100 flex items-center justify-center"
                         >
                             <TestTube className="h-3 w-3 mr-1" /> Collect Sample
@@ -212,8 +225,8 @@ const AssignedOverview = ({ assignedLab }) => {
                             key={tab}
                             onClick={() => setActiveTab(tab)}
                             className={`px-4 py-2 text-sm font-medium rounded-md transition-colors capitalize ${activeTab === tab
-                                    ? 'bg-primary-50 text-primary-700'
-                                    : 'text-gray-600 hover:bg-gray-50'
+                                ? 'bg-primary-50 text-primary-700'
+                                : 'text-gray-600 hover:bg-gray-50'
                                 }`}
                         >
                             {tab}

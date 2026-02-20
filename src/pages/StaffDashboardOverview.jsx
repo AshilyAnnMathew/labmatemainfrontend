@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
+import moment from 'moment';
 
 const StatCard = ({ title, value, icon: Icon, color, subtext }) => (
     <div className="bg-white rounded-xl p-6 shadow-soft border border-gray-100 flex items-start justify-between">
@@ -27,11 +28,13 @@ const StatCard = ({ title, value, icon: Icon, color, subtext }) => (
 
 const StaffDashboardOverview = ({ assignedLab }) => {
     const [stats, setStats] = useState({
-        totalPatientsToday: 0,
-        pendingCollections: 0,
-        testsInProgress: 0,
-        reportsPending: 0,
-        criticalResults: 0,
+        totalSamplesCollectedToday: 0,
+        samplesProcessing: 0,
+        partiallyCompletedSamples: 0,
+        completedSamples: 0,
+        reportsReadyForVerification: 0,
+        pendingPayments: 0,
+        criticalAlerts: 0,
         recentActivity: []
     });
     const [loading, setLoading] = useState(true);
@@ -43,7 +46,7 @@ const StaffDashboardOverview = ({ assignedLab }) => {
 
             try {
                 setLoading(true);
-                const response = await api.localAdminAPI.getDashboardStats(assignedLab._id);
+                const response = await api.localAdminAPI.getAdvancedDashboardStats(assignedLab._id);
                 if (response.success) {
                     setStats(response.data);
                 }
@@ -67,7 +70,7 @@ const StaffDashboardOverview = ({ assignedLab }) => {
         return <div className="p-8 text-center text-gray-500">Loading lab information...</div>;
     }
 
-    if (loading && !stats.totalPatientsToday) {
+    if (loading && !stats.totalSamplesCollectedToday) {
         return (
             <div className="flex justify-center items-center h-64">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -86,39 +89,53 @@ const StaffDashboardOverview = ({ assignedLab }) => {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
-                    title="Patients Today"
-                    value={stats.totalPatientsToday}
+                    title="Total Samples Today"
+                    value={stats.totalSamplesCollectedToday || 0}
                     icon={Users}
                     color={{ bg: 'bg-blue-50', icon: 'text-blue-600', text: 'text-blue-600' }}
-                    subtext="Scheduled appointments"
+                    subtext="Collected so far"
                 />
                 <StatCard
-                    title="Pending Collections"
-                    value={stats.pendingCollections}
-                    icon={TestTube}
-                    color={{ bg: 'bg-yellow-50', icon: 'text-yellow-600', text: 'text-yellow-600' }}
-                    subtext="Waiting for sample collection"
-                />
-                <StatCard
-                    title="Tests In Progress"
-                    value={stats.testsInProgress}
+                    title="Processing Samples"
+                    value={stats.samplesProcessing || 0}
                     icon={Activity}
-                    color={{ bg: 'bg-purple-50', icon: 'text-purple-600', text: 'text-purple-600' }}
-                    subtext="Samples being analyzed"
+                    color={{ bg: 'bg-yellow-50', icon: 'text-yellow-600', text: 'text-yellow-600' }}
+                    subtext="Undergoing tests"
                 />
                 <StatCard
-                    title="Reports Pending"
-                    value={stats.reportsPending}
-                    icon={FileText}
-                    color={{ bg: 'bg-orange-50', icon: 'text-orange-600', text: 'text-orange-600' }}
-                    subtext="Results waiting for upload"
+                    title="Ready for Verification"
+                    value={stats.reportsReadyForVerification || 0}
+                    icon={CheckCircle}
+                    color={{ bg: 'bg-emerald-50', icon: 'text-emerald-600', text: 'text-emerald-600' }}
+                    subtext="Awaiting verify"
                 />
                 <StatCard
                     title="Critical Alerts"
-                    value={stats.criticalResults || 0}
+                    value={stats.criticalAlerts || 0}
                     icon={AlertTriangle}
                     color={{ bg: 'bg-red-50', icon: 'text-red-600', text: 'text-red-600' }}
                     subtext="Abnormal vitals (24h)"
+                />
+                <StatCard
+                    title="Partially Completed"
+                    value={stats.partiallyCompletedSamples || 0}
+                    icon={TestTube}
+                    color={{ bg: 'bg-indigo-50', icon: 'text-indigo-600', text: 'text-indigo-600' }}
+                    subtext="Some tests done"
+                />
+                <StatCard
+                    title="Completed Samples"
+                    value={stats.completedSamples || 0}
+                    icon={CheckCircle}
+                    color={{ bg: 'bg-purple-50', icon: 'text-purple-600', text: 'text-purple-600' }}
+                    subtext="All tests finished"
+                />
+                <StatCard
+                    title="Pending Payments"
+                    value={stats.pendingPayments || 0}
+                    icon={FileText}
+                    color={{ bg: 'bg-orange-50', icon: 'text-orange-600', text: 'text-orange-600' }}
+                    subtext="Unpaid bookings"
                 />
             </div>
 
@@ -131,7 +148,7 @@ const StaffDashboardOverview = ({ assignedLab }) => {
                             <Link to="/staff/dashboard?tab=all" className="text-sm text-primary-600 hover:text-primary-700 font-medium">View All</Link>
                         </div>
                         <div className="divide-y divide-gray-100">
-                            {stats.recentActivity.length === 0 ? (
+                            {!stats.recentActivity || stats.recentActivity.length === 0 ? (
                                 <div className="p-8 text-center text-gray-500">No recent activity</div>
                             ) : (
                                 stats.recentActivity.map((booking) => (

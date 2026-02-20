@@ -784,6 +784,27 @@ export const bookingAPI = {
     }
   },
 
+  // Publish verified results to patient
+  publishResults: async (bookingId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/publish`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to publish results');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error publishing results:', error);
+      throw error;
+    }
+  },
+
 
 
   // Process payment for booking
@@ -1126,7 +1147,70 @@ export const localAdminAPI = {
     }
   },
 
-  // Get dashboard statistics
+  // Get active samples for tracking panel
+  getActiveSamples: async (labId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/samples/active/${labId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch active samples');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error fetching active samples:', error);
+      throw error;
+    }
+  },
+
+  // Collect sample for a booking (generates sample ID and barcode)
+  collectSample: async (bookingId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/samples/collect/${bookingId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to collect sample');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error collecting sample:', error);
+      throw error;
+    }
+  },
+
+  // Get advanced dashboard statistics
+  getAdvancedDashboardStats: async (labId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/staff/lab/${labId}/dashboard-stats`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch advanced dashboard stats');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error fetching advanced dashboard stats:', error);
+      throw error;
+    }
+  },
+
+  // Get dashboard statistics (Legacy)
   getDashboardStats: async (labId) => {
     try {
       const response = await fetch(`${API_BASE_URL}/bookings/lab/${labId}/stats`, {

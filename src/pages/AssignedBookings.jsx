@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
-import { 
-  Calendar, 
-  Clock, 
-  User, 
-  CreditCard, 
-  CheckCircle, 
+import Barcode from 'react-barcode'
+import {
+  Calendar,
+  Clock,
+  User,
+  CreditCard,
+  CheckCircle,
   AlertCircle,
   Eye,
   MapPin,
@@ -24,6 +25,8 @@ const AssignedBookings = () => {
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [showBarcodeModal, setShowBarcodeModal] = useState(false)
+  const [generatedSample, setGeneratedSample] = useState(null)
   const [filterStatus, setFilterStatus] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -64,16 +67,16 @@ const AssignedBookings = () => {
     try {
       setLoading(true)
       console.log('Fetching bookings for lab:', assignedLab._id, 'with filter:', filterStatus, 'page:', currentPage, 'limit:', limit)
-      
+
       const response = await api.localAdminAPI.getLabBookings(
-        assignedLab._id, 
-        filterStatus, 
-        currentPage, 
+        assignedLab._id,
+        filterStatus,
+        currentPage,
         limit
       )
-      
+
       console.log('API response received:', response)
-      
+
       if (response.success) {
         console.log('Fetched bookings successfully:', response.data)
         setBookings(response.data)
@@ -87,6 +90,35 @@ const AssignedBookings = () => {
       console.error('Error stack:', error.stack)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Handle collection of a new sample
+  const handleCollectSample = async (bookingId) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/samples/collect/${bookingId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setGeneratedSample({
+          sampleId: data.data.sampleId,
+          booking: data.data.booking
+        });
+        setShowBarcodeModal(true);
+        setShowBookingModal(false);
+        fetchBookings();
+      } else {
+        throw new Error(data.message || 'Failed to collect sample');
+      }
+    } catch (error) {
+      console.error('Error collecting sample:', error);
+      alert('Error collecting sample: ' + error.message);
     }
   }
 
@@ -170,12 +202,12 @@ const AssignedBookings = () => {
   }
 
   // Debug: Show current state
-  console.log('AssignedBookings render state:', { 
-    assignedLab, 
-    bookings, 
-    loading, 
-    filterStatus, 
-    currentPage 
+  console.log('AssignedBookings render state:', {
+    assignedLab,
+    bookings,
+    loading,
+    filterStatus,
+    currentPage
   })
 
   return (
@@ -217,8 +249,8 @@ const AssignedBookings = () => {
             <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No bookings found</h3>
             <p className="text-gray-600">
-              {filterStatus === 'all' 
-                ? 'No bookings available for this lab.' 
+              {filterStatus === 'all'
+                ? 'No bookings available for this lab.'
                 : `No ${filterStatus} bookings found.`
               }
             </p>
@@ -315,18 +347,27 @@ const AssignedBookings = () => {
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        
+
                         {/* Change Status to Sample Collected */}
-                        {booking.status !== 'sample_collected' && booking.status !== 'result_published' && booking.status !== 'completed' && booking.status !== 'cancelled' && (
+                        {booking.status === 'confirmed' && (
                           <button
-                            onClick={() => handleStatusUpdate(booking._id, 'sample_collected')}
-                            className="text-blue-600 hover:text-blue-900 flex items-center"
-                            title="Change Status to Sample Collected"
+                            onClick={() => handleStatusUpdate(booking._id, 'in_progress')}
+                            className="text-purple-600 hover:text-purple-900 flex items-center"
+                            title="Start Processing"
                           >
                             <TestTube className="h-4 w-4" />
                           </button>
                         )}
-                        
+                        {booking.status === 'in_progress' && (
+                          <button
+                            onClick={() => handleCollectSample(booking._id)}
+                            className="text-blue-600 hover:text-blue-900 flex items-center"
+                            title="Collect Sample & Generate Barcode"
+                          >
+                            <TestTube className="h-4 w-4" />
+                          </button>
+                        )}
+
                         {/* Payment Processing */}
                         {booking.paymentMethod === 'pay_later' && booking.paymentStatus === 'pending' && (
                           <button
@@ -378,7 +419,7 @@ const AssignedBookings = () => {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Booking Details</h3>
-            
+
             {/* Patient Information */}
             <div className="mb-6">
               <h4 className="text-md font-medium text-gray-900 mb-3">Patient Information</h4>
@@ -451,16 +492,16 @@ const AssignedBookings = () => {
                     className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center"
                   >
                     <TestTube className="h-4 w-4 mr-2" />
-                    Collect Sample
+                    Start Processing
                   </button>
                 )}
                 {selectedBooking.status === 'in_progress' && (
                   <button
-                    onClick={() => handleStatusUpdate(selectedBooking._id, 'sample_collected')}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+                    onClick={() => handleCollectSample(selectedBooking._id)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center shadow-md shadow-blue-500/20 active:scale-95 transition-all"
                   >
-                    <TestTube className="h-4 w-4 mr-2" />
-                    Sample Collected
+                    <TestTube className="h-4 w-4 mr-2 text-blue-200" />
+                    Collect Sample & Generate Barcode
                   </button>
                 )}
                 {selectedBooking.status === 'sample_collected' && (
@@ -526,6 +567,42 @@ const AssignedBookings = () => {
                 Mark as Paid
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Barcode Generation Modal */}
+      {showBarcodeModal && generatedSample && (
+        <div className="fixed inset-0 bg-gray-600/75 backdrop-blur-sm flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl transform transition-all text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mb-6 border-4 border-green-50">
+              <CheckCircle className="h-8 w-8 text-green-600" aria-hidden="true" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">Sample Collected!</h3>
+            <p className="text-gray-500 mb-8 max-w-sm mx-auto">
+              Please attach this barcode to the physical sample tube for <strong>{generatedSample.booking.userId?.firstName} {generatedSample.booking.userId?.lastName}</strong>.
+            </p>
+
+            <div className="bg-gray-50 py-6 px-4 rounded-xl border border-gray-100 mb-8 flex justify-center items-center shadow-inner">
+              <Barcode
+                value={generatedSample.sampleId}
+                height={80}
+                width={2}
+                displayValue={true}
+                fontSize={18}
+                background="#f9fafb"
+              />
+            </div>
+
+            <button
+              onClick={() => {
+                setShowBarcodeModal(false)
+                setGeneratedSample(null)
+              }}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all shadow-primary-500/30"
+            >
+              Done & Print Label
+            </button>
           </div>
         </div>
       )}

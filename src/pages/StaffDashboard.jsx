@@ -5,7 +5,8 @@ import {
   Upload,
   FileText,
   MessageSquare,
-  TestTube,
+  Activity,
+  ListOrdered,
   FileSearch,
   LayoutDashboard,
   Users
@@ -18,6 +19,8 @@ import StaffPrescriptionHandling from './StaffPrescriptionHandling'
 import StaffPatientCommunication from './StaffPatientCommunication'
 import StaffDashboardOverview from './StaffDashboardOverview'
 import AssignedOverview from './AssignedOverview'
+import SampleTrackingPanel from './SampleTrackingPanel'
+import ActivityLog from './ActivityLog'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 
@@ -86,6 +89,16 @@ const StaffDashboard = () => {
       path: '/staff/communication',
       label: 'Patient Communication',
       icon: MessageSquare
+    },
+    {
+      path: '/staff/active-samples',
+      label: 'Active Samples',
+      icon: ListOrdered
+    },
+    {
+      path: '/staff/activity-logs',
+      label: 'Activity Logs',
+      icon: Activity
     }
   ]
 
@@ -105,6 +118,8 @@ const StaffDashboard = () => {
         <Route path="/view-reports" element={<StaffReports />} />
         <Route path="/prescriptions" element={<StaffPrescriptionHandling />} />
         <Route path="/communication" element={<StaffPatientCommunication />} />
+        <Route path="/active-samples" element={<SampleTrackingPanel assignedLab={assignedLab} />} />
+        <Route path="/activity-logs" element={<ActivityLog assignedLab={assignedLab} />} />
         <Route path="*" element={<Navigate to="/staff/dashboard" replace />} />
       </Routes>
     </DashboardLayout>
