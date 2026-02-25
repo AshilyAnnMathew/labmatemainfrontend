@@ -492,7 +492,7 @@ const AdminBookings = () => {
                                 </div>
                                 <div className="flex items-center">
                                   <Phone className="h-4 w-4 mr-2 text-gray-400" />
-                                  <span>{booking.labId?.contact}</span>
+                                  <span>{booking.labId?.contact?.phone || booking.labId?.contact?.email || 'N/A'}</span>
                                 </div>
                               </div>
                             </div>
@@ -614,7 +614,7 @@ const AdminBookings = () => {
                 <div className="space-y-2 text-sm">
                   <div><strong>Lab:</strong> {selectedBooking.labId?.name}</div>
                   <div><strong>Address:</strong> {formatAddress(selectedBooking.labId?.address)}</div>
-                  <div><strong>Contact:</strong> {selectedBooking.labId?.contact}</div>
+                  <div><strong>Contact:</strong> {selectedBooking.labId?.contact?.phone || 'N/A'}</div>
                   <div><strong>Email:</strong> {selectedBooking.labId?.email || 'N/A'}</div>
                 </div>
               </div>

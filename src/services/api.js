@@ -993,6 +993,31 @@ export const resultsAPI = {
       console.error('Error submitting results:', error);
       throw error;
     }
+  },
+
+  // Upload file result for imaging tests (ECG, X-ray, CT scan, etc.)
+  uploadTestResultFile: async (bookingId, testId, file, findings = '') => {
+    try {
+      const formData = new FormData();
+      formData.append('resultFile', file);
+      formData.append('findings', findings);
+
+      const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/upload-test-result/${testId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`
+        },
+        body: formData
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to upload result file');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error uploading test result file:', error);
+      throw error;
+    }
   }
 };
 

@@ -9,6 +9,8 @@ import api from '../services/api'
 import jsPDF from 'jspdf'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
+const BACKEND_URL = 'http://localhost:5000'
+
 const DownloadReports = () => {
   const { user } = useAuth()
   const [bookings, setBookings] = useState([])
@@ -60,6 +62,27 @@ const DownloadReports = () => {
       return parseFloat(val) < parseFloat(parts[0]) || parseFloat(val) > parseFloat(parts[1])
     }
     return false
+  }
+
+  // Build full URL for an uploaded imaging result file
+  const getFileUrl = (filePath) => {
+    if (!filePath) return null
+    if (filePath.startsWith('http')) return filePath
+    // filePath is like "uploads/test-results/result-xxx.pdf"
+    return `${BACKEND_URL}/${filePath.replace(/\\/g, '/')}`
+  }
+
+  // Download an imaging result file
+  const handleDownloadFile = (filePath, testName) => {
+    const url = getFileUrl(filePath)
+    if (!url) return
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${(testName || 'imaging-result').replace(/\s+/g, '_')}.${filePath.split('.').pop()}`
+    a.target = '_blank'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
   }
 
   const countAbnormals = (b) => {
@@ -210,56 +233,373 @@ Patient: ${patientInfo}\n${analysisData}\n\nProvide clear, patient-friendly anal
     if (booking.paymentStatus !== 'completed') { alert('Please complete payment first.'); return }
     try {
       const doc = new jsPDF()
-      const pageWidth = doc.internal.pageSize.getWidth()
-      const pageHeight = doc.internal.pageSize.getHeight()
-      let y = 20
+      const pw = doc.internal.pageSize.getWidth()
+      const ph = doc.internal.pageSize.getHeight()
+      const ml = 15 // margin left
+      const mr = pw - 15 // margin right
+      const cw = mr - ml // content width
+      let y = 0
 
-      // Header
-      doc.setFillColor(59, 130, 246)
-      doc.rect(0, 0, pageWidth, 40, 'F')
-      doc.setTextColor(255, 255, 255)
-      doc.setFontSize(28); doc.setFont('helvetica', 'bold')
-      doc.text(String(booking.labId?.name || 'LABORATORY'), pageWidth / 2, 25, { align: 'center' })
-      doc.setFontSize(12); doc.setFont('helvetica', 'normal')
-      doc.text('Diagnostic Excellence • Trusted Results', pageWidth / 2, 35, { align: 'center' })
-      doc.setTextColor(0, 0, 0); y = 50
+      // ─── Color Palette ───
+      const navy = [21, 55, 96]
+      const darkBlue = [30, 64, 175]
+      const teal = [13, 148, 136]
+      const lightGray = [248, 250, 252]
+      const medGray = [229, 231, 235]
+      const darkText = [31, 41, 55]
+      const red = [220, 38, 38]
+      const white = [255, 255, 255]
 
-      // Patient Info
-      doc.setFillColor(248, 250, 252); doc.rect(15, y, pageWidth - 30, 35, 'F')
-      doc.setDrawColor(0); doc.setLineWidth(0.5); doc.rect(15, y, pageWidth - 30, 35)
-      y += 8; doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.text('PATIENT INFORMATION', 20, y); y += 10
-      doc.setFontSize(11); doc.setFont('helvetica', 'normal')
-      doc.text(`Name: ${booking.userId?.firstName || ''} ${booking.userId?.lastName || ''}`, 20, y)
-      doc.text(`Age/Gender: ${booking.userId?.age || 'N/A'} / ${booking.userId?.gender || 'N/A'}`, pageWidth / 2 + 10, y); y += 6
-      doc.text(`Date: ${formatDate(booking.appointmentDate)}`, 20, y)
-      doc.text(`Report ID: ${booking._id}`, pageWidth / 2 + 10, y); y += 20
-
-      // Results
-      if (booking.testResults?.length > 0) {
-        doc.setFontSize(16); doc.setFont('helvetica', 'bold'); doc.text('LABORATORY RESULTS', 20, y); y += 12
-        const testNameById = new Map((booking.selectedTests || []).map(t => [(t.testId?._id || t.testId), t.testName]))
-        booking.testResults.forEach((tr, idx) => {
-          const testName = testNameById.get(tr.testId?._id || tr.testId) || 'Test'
-          if (y > pageHeight - 80) { doc.addPage(); y = 20 }
-          doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.text(`${idx + 1}. ${String(testName)}`, 20, y); y += 8
-          doc.setFontSize(10); doc.setFont('helvetica', 'bold')
-          doc.text('Parameter', 20, y); doc.text('Value', 80, y); doc.text('Unit', 120, y); doc.text('Ref Range', 150, y); y += 5
-          doc.line(20, y, pageWidth - 20, y); y += 5
-          doc.setFont('helvetica', 'normal')
-            ; (tr.values || []).forEach(v => {
-              if (y > pageHeight - 30) { doc.addPage(); y = 20 }
-              doc.text(String(v.label || ''), 20, y); doc.text(String(v.value ?? ''), 80, y)
-              doc.text(String(v.unit || ''), 120, y); doc.text(String(v.referenceRange || ''), 150, y); y += 5
-            })
-          y += 10
-        })
+      // ─── Helper: Format Lab Address ───
+      const formatLabAddress = (addr) => {
+        if (!addr) return ''
+        if (typeof addr === 'string') return addr
+        return [addr.street, addr.city, addr.state, addr.zipCode, addr.country].filter(Boolean).join(', ')
       }
-      // Footer
-      y += 10; doc.setFontSize(9); doc.setFont('helvetica', 'normal')
-      doc.text('This report is electronically generated. Consult a healthcare professional for interpretation.', 20, y)
-      const patientName = `${booking.userId?.firstName || ''}_${booking.userId?.lastName || ''}`.replace(/\s/g, '_')
-      doc.save(`LabReport_${patientName}_${booking._id}.pdf`)
-    } catch (err) { alert('PDF generation failed.'); console.error(err) }
+
+      // ─── Helper: Check if value is abnormal ───
+      const checkAbnormal = (val, rangeStr) => {
+        if (!val || !rangeStr || isNaN(val)) return { abnormal: false, flag: '' }
+        const parts = rangeStr.replace(/\s/g, '').split('-')
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          const numVal = parseFloat(val), lo = parseFloat(parts[0]), hi = parseFloat(parts[1])
+          if (numVal < lo) return { abnormal: true, flag: 'L' }
+          if (numVal > hi) return { abnormal: true, flag: 'H' }
+        }
+        return { abnormal: false, flag: '' }
+      }
+
+      // ─── Helper: Add page footer ───
+      const addPageFooter = (pageNum, totalPages) => {
+        // Bottom line
+        doc.setDrawColor(...medGray)
+        doc.setLineWidth(0.3)
+        doc.line(ml, ph - 20, mr, ph - 20)
+
+        doc.setFontSize(7)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(156, 163, 175) // gray-400
+        doc.text('This report is electronically generated and does not require a signature.', ml, ph - 15)
+        doc.text('Please consult a healthcare professional for interpretation of results.', ml, ph - 11)
+        doc.text(`Page ${pageNum} of ${totalPages}`, mr, ph - 15, { align: 'right' })
+        doc.text(`Report ID: ${booking._id}`, mr, ph - 11, { align: 'right' })
+        doc.setTextColor(...darkText)
+      }
+
+      // ─── Helper: Check page break ───
+      const checkPageBreak = (neededSpace = 30) => {
+        if (y > ph - neededSpace - 25) {
+          doc.addPage()
+          y = 20
+          return true
+        }
+        return false
+      }
+
+      // ═════════════════════════════════════════════
+      //  PAGE 1: HEADER + PATIENT INFO + RESULTS
+      // ═════════════════════════════════════════════
+
+      // ── Lab Header Banner ──
+      doc.setFillColor(...navy)
+      doc.rect(0, 0, pw, 42, 'F')
+
+      // Lab Name
+      doc.setTextColor(...white)
+      doc.setFontSize(22)
+      doc.setFont('helvetica', 'bold')
+      doc.text(String(booking.labId?.name || 'LABORATORY').toUpperCase(), pw / 2, 18, { align: 'center' })
+
+      // Lab tagline
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.text('Diagnostic Excellence  •  Trusted Results  •  Quality Healthcare', pw / 2, 27, { align: 'center' })
+
+      // Lab contact line
+      const labPhone = booking.labId?.contact?.phone || ''
+      const labEmail = booking.labId?.contact?.email || ''
+      const labAddr = formatLabAddress(booking.labId?.address)
+      const contactParts = [labPhone, labEmail].filter(Boolean).join('  |  ')
+      if (contactParts) {
+        doc.setFontSize(7.5)
+        doc.text(contactParts, pw / 2, 35, { align: 'center' })
+      }
+      if (labAddr) {
+        doc.setFontSize(7)
+        doc.setTextColor(180, 199, 231)
+        const addrShort = labAddr.length > 80 ? labAddr.substring(0, 80) + '...' : labAddr
+        doc.text(addrShort, pw / 2, 40, { align: 'center' })
+      }
+
+      // ── Accent Bar ──
+      doc.setFillColor(...teal)
+      doc.rect(0, 42, pw, 2.5, 'F')
+
+      doc.setTextColor(...darkText)
+      y = 52
+
+      // ── Report Title ──
+      doc.setFillColor(...lightGray)
+      doc.roundedRect(ml, y, cw, 10, 1, 1, 'F')
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...darkBlue)
+      doc.text('LABORATORY TEST REPORT', pw / 2, y + 7, { align: 'center' })
+      doc.setTextColor(...darkText)
+      y += 16
+
+      // ── Patient Information Box ──
+      doc.setDrawColor(...medGray)
+      doc.setLineWidth(0.4)
+      doc.roundedRect(ml, y, cw, 34, 1.5, 1.5)
+
+      // Section title bar
+      doc.setFillColor(240, 243, 255)
+      doc.roundedRect(ml, y, cw, 8.5, 1.5, 1.5, 'F')
+      doc.rect(ml, y + 4, cw, 4.5, 'F') // square bottom corners
+      doc.setFontSize(8.5)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...navy)
+      doc.text('PATIENT INFORMATION', ml + 4, y + 6)
+      doc.setTextColor(...darkText)
+
+      const infoY = y + 14
+      const col2x = pw / 2 + 5 // second column start
+
+      doc.setFontSize(8.5)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Patient Name:', ml + 4, infoY)
+      doc.text('Age / Gender:', ml + 4, infoY + 6)
+      doc.text('Phone:', ml + 4, infoY + 12)
+      doc.text('Report Date:', col2x, infoY)
+      doc.text('Report ID:', col2x, infoY + 6)
+      doc.text('Ref. Doctor:', col2x, infoY + 12)
+
+      doc.setFont('helvetica', 'normal')
+      const patientName = `${booking.userId?.firstName || ''} ${booking.userId?.lastName || ''}`.trim()
+      doc.text(patientName || 'N/A', ml + 30, infoY)
+      doc.text(`${booking.userId?.age || 'N/A'} / ${booking.userId?.gender || 'N/A'}`, ml + 30, infoY + 6)
+      doc.text(booking.userId?.phone || 'N/A', ml + 30, infoY + 12)
+      doc.text(formatDate(booking.appointmentDate), col2x + 24, infoY)
+      const shortId = String(booking._id).slice(-12).toUpperCase()
+      doc.text(shortId, col2x + 24, infoY + 6)
+      doc.text('Self / Clinical', col2x + 24, infoY + 12)
+
+      y += 40
+
+      // ── Sample Information ──
+      doc.setFillColor(...lightGray)
+      doc.roundedRect(ml, y, cw, 10, 1, 1, 'F')
+      doc.setDrawColor(...medGray)
+      doc.roundedRect(ml, y, cw, 10, 1, 1)
+
+      doc.setFontSize(7.5)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(107, 114, 128)
+      doc.text('COLLECTED:', ml + 4, y + 6.5)
+      doc.text('REPORTED:', pw / 2 - 20, y + 6.5)
+      doc.text('STATUS:', pw / 2 + 30, y + 6.5)
+
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...darkText)
+      const appointDate = formatDate(booking.appointmentDate)
+      const reportDate = booking.updatedAt ? formatDate(booking.updatedAt) : appointDate
+      doc.text(appointDate, ml + 24, y + 6.5)
+      doc.text(reportDate, pw / 2 - 2, y + 6.5)
+
+      // Status badge
+      const statusText = (booking.status || 'completed').replace(/_/g, ' ').toUpperCase()
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(13, 148, 136)
+      doc.text(statusText, pw / 2 + 46, y + 6.5)
+
+      doc.setTextColor(...darkText)
+      y += 16
+
+      // ── Tests Ordered Summary ──
+      const allTestNames = (booking.selectedTests || []).map(t => t.testName || t.testId?.name).filter(Boolean)
+      const allPkgNames = (booking.selectedPackages || []).map(p => p.packageName || p.packageId?.name).filter(Boolean)
+      if (allTestNames.length > 0 || allPkgNames.length > 0) {
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...navy)
+        doc.text('TESTS ORDERED:', ml, y)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(...darkText)
+        const orderedStr = [...allPkgNames.map(p => `[Pkg] ${p}`), ...allTestNames].join('  |  ')
+        const splitOrdered = doc.splitTextToSize(orderedStr, cw - 30)
+        doc.setFontSize(7.5)
+        doc.text(splitOrdered, ml + 28, y)
+        y += splitOrdered.length * 4 + 4
+      }
+
+      // ── Separator ──
+      doc.setDrawColor(...navy)
+      doc.setLineWidth(0.6)
+      doc.line(ml, y, mr, y)
+      y += 4
+
+      // ═════════════════════════════════════════════
+      //  TEST RESULTS TABLES
+      // ═════════════════════════════════════════════
+
+      if (booking.testResults?.length > 0) {
+        doc.setFontSize(12)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...navy)
+        doc.text('LABORATORY RESULTS', ml, y + 4)
+        doc.setTextColor(...darkText)
+        y += 10
+
+        const testNameById = new Map((booking.selectedTests || []).map(t => [(t.testId?._id || t.testId), t.testName]))
+        let totalParams = 0, totalAbnormal = 0
+
+        booking.testResults.forEach((tr, idx) => {
+          const testName = testNameById.get(tr.testId?._id || tr.testId) || `Test ${idx + 1}`
+          const values = tr.values || []
+          const testAbnormals = values.filter(v => checkAbnormal(v.value, v.referenceRange).abnormal).length
+
+          totalParams += values.length
+          totalAbnormal += testAbnormals
+
+          // Check space for at least header + 2 rows
+          checkPageBreak(40)
+
+          // ── Test name header ──
+          doc.setFillColor(240, 243, 255)
+          doc.roundedRect(ml, y, cw, 8, 1, 1, 'F')
+          doc.setFontSize(9.5)
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(...darkBlue)
+          doc.text(`${idx + 1}. ${String(testName)}`, ml + 3, y + 5.5)
+
+          // Abnormal badge on right
+          if (testAbnormals > 0) {
+            doc.setFontSize(7)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(...red)
+            doc.text(`${testAbnormals} ABNORMAL`, mr - 3, y + 5.5, { align: 'right' })
+          } else {
+            doc.setFontSize(7)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(34, 197, 94)
+            doc.text('ALL NORMAL', mr - 3, y + 5.5, { align: 'right' })
+          }
+
+          doc.setTextColor(...darkText)
+          y += 10
+
+          // ── Table header ──
+          const colX = { param: ml + 2, value: ml + 60, flag: ml + 95, unit: ml + 108, range: ml + 140 }
+
+          doc.setFillColor(...medGray)
+          doc.rect(ml, y, cw, 6, 'F')
+          doc.setFontSize(7)
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(75, 85, 99)
+          doc.text('PARAMETER', colX.param, y + 4)
+          doc.text('RESULT', colX.value, y + 4)
+          doc.text('FLAG', colX.flag, y + 4)
+          doc.text('UNIT', colX.unit, y + 4)
+          doc.text('REFERENCE RANGE', colX.range, y + 4)
+          doc.setTextColor(...darkText)
+          y += 8
+
+          // ── Table rows ──
+          values.forEach((v, vi) => {
+            checkPageBreak(12)
+
+            // Alternating row background
+            if (vi % 2 === 0) {
+              doc.setFillColor(249, 250, 251)
+              doc.rect(ml, y - 3, cw, 6, 'F')
+            }
+
+            const { abnormal, flag } = checkAbnormal(v.value, v.referenceRange)
+
+            doc.setFontSize(8)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(...darkText)
+            doc.text(String(v.label || '-'), colX.param, y)
+
+            // Value - bold+red if abnormal
+            if (abnormal) {
+              doc.setFont('helvetica', 'bold')
+              doc.setTextColor(...red)
+            }
+            doc.text(String(v.value ?? '-'), colX.value, y)
+
+            // Flag column
+            if (flag) {
+              doc.setFontSize(7)
+              doc.setFont('helvetica', 'bold')
+              doc.setTextColor(...red)
+              doc.text(flag === 'H' ? 'HIGH' : 'LOW', colX.flag, y)
+            }
+
+            // Reset color for unit and range
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(107, 114, 128)
+            doc.setFontSize(7.5)
+            doc.text(String(v.unit || '-'), colX.unit, y)
+            doc.text(String(v.referenceRange || '-'), colX.range, y)
+
+            doc.setTextColor(...darkText)
+            y += 6
+          })
+
+          // Bottom border for test table
+          doc.setDrawColor(...medGray)
+          doc.setLineWidth(0.2)
+          doc.line(ml, y, mr, y)
+          y += 8
+        })
+
+      }
+
+      // ═════════════════════════════════════════════
+      //  AUTHORIZATION
+      // ═════════════════════════════════════════════
+
+      checkPageBreak(30)
+
+      y += 6
+      doc.setDrawColor(...medGray)
+      doc.setLineWidth(0.2)
+
+      // Signature lines
+      doc.line(ml, y + 12, ml + 55, y + 12)
+      doc.line(mr - 55, y + 12, mr, y + 12)
+
+      doc.setFontSize(7.5)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(107, 114, 128)
+      doc.text('Pathologist / Lab Technician', ml, y + 17)
+      doc.text('Authorized Signatory', mr - 55, y + 17)
+
+      doc.setFontSize(6.5)
+      doc.setFont('helvetica', 'normal')
+      doc.text('Digitally Verified', ml, y + 21)
+      doc.text(String(booking.labId?.name || ''), mr - 55, y + 21)
+
+      // ═════════════════════════════════════════════
+      //  FOOTER ON ALL PAGES
+      // ═════════════════════════════════════════════
+
+      const totalPages = doc.internal.getNumberOfPages()
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i)
+        addPageFooter(i, totalPages)
+      }
+
+      // ── Save ──
+      const safeName = patientName.replace(/\s/g, '_') || 'Patient'
+      doc.save(`LabReport_${safeName}_${shortId}.pdf`)
+    } catch (err) {
+      alert('PDF generation failed. Please try again.')
+      console.error('PDF generation error:', err)
+    }
   }, [formatDate])
 
   // ── Filtered Data ──
@@ -611,6 +951,32 @@ Patient: ${patientInfo}\n${analysisData}\n\nProvide clear, patient-friendly anal
                                   })}
                                 </tbody>
                               </table>
+                              {/* Imaging file download */}
+                              {tr.resultFile && (
+                                <div className="mt-3 bg-teal-50 border border-teal-200 rounded-lg p-3 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <FileText className="h-4 w-4 text-teal-600" />
+                                      <span className="text-sm font-medium text-teal-800">Imaging Result File</span>
+                                      <span className="text-xs text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full">
+                                        {tr.resultFile.split('.').pop().toUpperCase()}
+                                      </span>
+                                    </div>
+                                    <button
+                                      onClick={() => handleDownloadFile(tr.resultFile, testName)}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-medium rounded-lg transition-colors"
+                                    >
+                                      <Download className="h-3.5 w-3.5" /> Download File
+                                    </button>
+                                  </div>
+                                  {tr.findings && (
+                                    <div className="mt-2 pt-2 border-t border-teal-200">
+                                      <p className="text-xs font-semibold text-teal-700 mb-1">Lab Findings / Interpretation:</p>
+                                      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{tr.findings}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                               {tr.verifiedAt && (
                                 <div className="mt-2 text-xs text-emerald-600 flex items-center bg-emerald-50 px-3 py-1.5 rounded">
                                   <Shield className="h-3 w-3 mr-1.5" /> Verified {formatDateTime(tr.verifiedAt)}
@@ -632,19 +998,37 @@ Patient: ${patientInfo}\n${analysisData}\n\nProvide clear, patient-friendly anal
 
               {/* Modal Footer */}
               <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center flex-shrink-0">
-                <div className="flex gap-2">
-                  {selected.paymentStatus === 'completed' && selected.testResults?.length > 0 && (
-                    <>
-                      <button onClick={() => { setSelected(null); analyzeResultsWithAI(selected) }} disabled={analyzing[selected._id]}
-                        className="px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-1.5 disabled:opacity-50">
-                        {analyzing[selected._id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Brain className="h-3.5 w-3.5" />} AI Analysis
-                      </button>
-                      <button onClick={() => downloadResultsPdf(selected)}
-                        className="px-3 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1.5">
-                        <Download className="h-3.5 w-3.5" /> Download PDF
-                      </button>
-                    </>
-                  )}
+                <div className="flex gap-2 flex-wrap">
+                  {selected.paymentStatus === 'completed' && selected.testResults?.length > 0 && (() => {
+                    const hasValueResults = selected.testResults.some(tr => tr.values?.length > 0)
+                    const imagingResults = selected.testResults.filter(tr => tr.resultFile)
+                    const testNameById = new Map((selected.selectedTests || []).map(t => [
+                      (t.testId?._id || t.testId)?.toString(), t.testName
+                    ]))
+                    return (
+                      <>
+                        <button onClick={() => { setSelected(null); analyzeResultsWithAI(selected) }} disabled={analyzing[selected._id]}
+                          className="px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-1.5 disabled:opacity-50">
+                          {analyzing[selected._id] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Brain className="h-3.5 w-3.5" />} AI Analysis
+                        </button>
+                        {hasValueResults && (
+                          <button onClick={() => downloadResultsPdf(selected)}
+                            className="px-3 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1.5">
+                            <Download className="h-3.5 w-3.5" /> Download PDF
+                          </button>
+                        )}
+                        {imagingResults.map((tr, i) => {
+                          const tName = testNameById.get((tr.testId?._id || tr.testId)?.toString()) || `Imaging File ${i + 1}`
+                          return (
+                            <button key={i} onClick={() => handleDownloadFile(tr.resultFile, tName)}
+                              className="px-3 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-1.5">
+                              <Download className="h-3.5 w-3.5" /> {tName} File
+                            </button>
+                          )
+                        })}
+                      </>
+                    )
+                  })()}
                 </div>
                 <button onClick={() => setSelected(null)} className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
                   Close

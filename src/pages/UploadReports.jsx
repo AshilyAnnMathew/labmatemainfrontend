@@ -12,7 +12,8 @@ import {
   ChevronRight,
   Package,
   BarChart3,
-  Printer
+  Printer,
+  ImagePlus
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
@@ -33,6 +34,9 @@ const UploadReports = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedTests, setExpandedTests] = useState({});
   const [savingTestId, setSavingTestId] = useState(null);
+  const [imagingFiles, setImagingFiles] = useState({});
+  const [imagingFindings, setImagingFindings] = useState({});
+  const [uploadingImaging, setUploadingImaging] = useState(null);
 
   // ── helpers ──
 
@@ -63,6 +67,7 @@ const UploadReports = () => {
       tests.push({
         id: t.testId?._id || t.testId,
         name: t.testId?.name || t.testName,
+        category: t.testId?.category || '',
         resultFields: t.testId?.resultFields || [],
         source: 'direct',
         sourceName: 'Individual Tests'
@@ -76,6 +81,7 @@ const UploadReports = () => {
         tests.push({
           id: test._id,
           name: test.name,
+          category: test.category || '',
           resultFields: test.resultFields || [],
           source: 'package',
           sourceName: pkg.packageId?.name || pkg.packageName
@@ -273,6 +279,15 @@ const UploadReports = () => {
     setExpandedTests(prev => ({ ...prev, [testId]: !prev[testId] }));
   };
 
+  // Helper: detect imaging test
+  const isImagingTest = (test) => {
+    const imagingCategories = ['imaging', 'cardiology'];
+    if (imagingCategories.includes(test.category)) return true;
+    // Also detect by name patterns if category not set
+    const imagingNames = ['x-ray', 'xray', 'ecg', 'ekg', 'ct scan', 'mri', 'ultrasound', 'scan', 'mammography', 'fluoroscopy', 'pet scan', 'echo'];
+    return imagingNames.some(n => (test.name || '').toLowerCase().includes(n));
+  };
+
   const handleSaveTestResult = async (testId) => {
     if (!selectedBooking || !resultEntries[testId]) return;
     const testResults = [{
@@ -290,7 +305,6 @@ const UploadReports = () => {
       setSavingTestId(testId);
       const res = await api.resultsAPI.submitResults(selectedBooking._id, testResults);
       if (res.success) {
-        // Keep modal open — refresh data in-place
         await refreshAndReopenModal(selectedBooking._id);
       }
     } catch (err) {
@@ -298,6 +312,31 @@ const UploadReports = () => {
       alert('Error: ' + err.message);
     } finally {
       setSavingTestId(null);
+    }
+  };
+
+  // Handle imaging file upload
+  const handleUploadImagingResult = async (testId) => {
+    const file = imagingFiles[testId];
+    if (!file || !selectedBooking) {
+      alert('Please select an image or PDF file to upload.');
+      return;
+    }
+    try {
+      setUploadingImaging(testId);
+      const res = await api.resultsAPI.uploadTestResultFile(
+        selectedBooking._id, testId, file, imagingFindings[testId] || ''
+      );
+      if (res.success) {
+        setImagingFiles(prev => ({ ...prev, [testId]: null }));
+        setImagingFindings(prev => ({ ...prev, [testId]: '' }));
+        await refreshAndReopenModal(selectedBooking._id);
+      }
+    } catch (err) {
+      console.error('Error uploading imaging result:', err);
+      alert('Error: ' + err.message);
+    } finally {
+      setUploadingImaging(null);
     }
   };
 
@@ -638,7 +677,108 @@ const UploadReports = () => {
                     {/* Accordion Body */}
                     {isExpanded && (
                       <div className="px-4 pb-4 border-t border-gray-100 pt-3">
-                        {Array.isArray(resultEntries[test.id]) && resultEntries[test.id].length > 0 ? (
+                        {isImagingTest(test) ? (
+                          /* ── Imaging Test: File Upload UI ── */
+                          <div className="space-y-3">
+                            {/* Show existing uploaded file */}
+                            {testResult?.resultFile && (
+                              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                                <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium mb-2">
+                                  <FileImage className="h-4 w-4" />
+                                  File uploaded
+                                </div>
+                                <img
+                                  src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}/${testResult.resultFile}`}
+                                  alt={test.name}
+                                  className="max-h-48 rounded-lg border border-emerald-200 object-contain"
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                                {testResult?.findings && (
+                                  <p className="mt-2 text-sm text-gray-700 bg-white rounded p-2 border border-emerald-100">
+                                    <strong>Findings:</strong> {testResult.findings}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                            {!isDisabled && (
+                              <>
+                                {/* File Upload Zone */}
+                                <div
+                                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer
+                                    ${imagingFiles[test.id] ? 'border-primary-400 bg-primary-50' : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'}`}
+                                  onClick={() => document.getElementById(`imaging-file-${test.id}`)?.click()}
+                                >
+                                  <input
+                                    id={`imaging-file-${test.id}`}
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/jpg,application/pdf"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files[0];
+                                      if (file) {
+                                        if (file.size > 15 * 1024 * 1024) { alert('File must be under 15MB'); return; }
+                                        setImagingFiles(prev => ({ ...prev, [test.id]: file }));
+                                      }
+                                    }}
+                                  />
+                                  {imagingFiles[test.id] ? (
+                                    <div>
+                                      <FileImage className="h-8 w-8 text-primary-500 mx-auto mb-2" />
+                                      <p className="text-sm font-medium text-primary-700">{imagingFiles[test.id].name}</p>
+                                      <p className="text-xs text-gray-500 mt-1">{(imagingFiles[test.id].size / (1024 * 1024)).toFixed(2)} MB — Click to change</p>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <ImagePlus className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                      <p className="text-sm text-gray-600 font-medium">Upload {test.name} Image/Report</p>
+                                      <p className="text-xs text-gray-400 mt-1">JPG, PNG, or PDF • Max 15MB</p>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Findings Textarea */}
+                                <div>
+                                  <label className="text-sm font-medium text-gray-700 block mb-1">Findings / Interpretation</label>
+                                  <textarea
+                                    rows={3}
+                                    value={imagingFindings[test.id] || ''}
+                                    onChange={(e) => setImagingFindings(prev => ({ ...prev, [test.id]: e.target.value }))}
+                                    placeholder="Enter medical findings, observations, or interpretation..."
+                                    className="w-full border border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
+                                  />
+                                </div>
+
+                                {/* Upload Button */}
+                                <div className="flex justify-end gap-2 pt-1">
+                                  <button
+                                    onClick={() => handleUploadImagingResult(test.id)}
+                                    disabled={!imagingFiles[test.id] || uploadingImaging === test.id}
+                                    className="px-4 py-2 text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg disabled:opacity-50 flex items-center gap-1.5 transition-colors shadow-sm"
+                                  >
+                                    <Upload className="h-3.5 w-3.5" />
+                                    {uploadingImaging === test.id ? 'Uploading...' : 'Upload Result'}
+                                  </button>
+                                </div>
+                              </>
+                            )}
+
+                            {/* Verify button for imaging results */}
+                            {testStatus === 'completed' && (
+                              <div className="flex justify-end">
+                                <button
+                                  onClick={() => handleVerifyTest(test.id)}
+                                  disabled={verifying}
+                                  className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-50 flex items-center transition-colors shadow-sm"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                                  {verifying ? 'Verifying...' : 'Verify'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ) : Array.isArray(resultEntries[test.id]) && resultEntries[test.id].length > 0 ? (
+                          /* ── Normal Test: Value Input Fields ── */
                           <div className="space-y-3">
                             {resultEntries[test.id].map((field, fIdx) => (
                               <div key={fIdx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
