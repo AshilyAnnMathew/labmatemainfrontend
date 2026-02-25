@@ -428,71 +428,98 @@ const UploadReports = () => {
     );
   };
 
-  // ── sample label print ──
+  // ── sample label print (one label per test) ──
   const printSampleLabel = (row) => {
     const patientName = `${row.userId?.firstName || ''} ${row.userId?.lastName || ''}`;
     const sampleId = row.sampleId || '—';
     const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     const timeStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-    const tests = row.displayName || 'Tests';
     const age = row.userId?.age ? `${row.userId.age}Y` : '';
     const gender = row.userId?.gender ? row.userId.gender.charAt(0).toUpperCase() : '';
     const ageGender = [age, gender].filter(Boolean).join('/');
 
-    const labelHTML = `
-      <!DOCTYPE html>
-      <html><head><title>Sample Label - ${sampleId}</title>
-      <style>
-        @page { size: 3in 1.5in; margin: 0; }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; width: 3in; padding: 6px 8px; }
-        .label-border { border: 1.5px solid #333; border-radius: 4px; padding: 5px 8px; height: 1.35in; display: flex; flex-direction: column; justify-content: space-between; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #999; padding-bottom: 3px; margin-bottom: 3px; }
-        .lab-name { font-size: 8px; font-weight: bold; color: #333; letter-spacing: 0.5px; }
-        .date-time { font-size: 7px; color: #666; text-align: right; }
-        .sample-id { font-family: 'Courier New', monospace; font-size: 14px; font-weight: bold; letter-spacing: 1px; text-align: center; padding: 3px 0; }
-        .barcode { display: flex; justify-content: center; gap: 1px; padding: 2px 0; }
-        .barcode span { display: inline-block; height: 18px; background: #000; }
-        .patient-info { display: flex; justify-content: space-between; font-size: 9px; border-top: 1px dashed #999; padding-top: 3px; margin-top: 2px; }
-        .patient-name { font-weight: bold; color: #111; }
-        .tests { font-size: 7px; color: #555; text-align: center; }
-        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-      </style></head>
-      <body>
+    // Build one label per test
+    const allTests = row.allTests || [];
+    const totalLabels = allTests.length || 1;
+
+    const labelsHTML = allTests.length > 0
+      ? allTests.map((test, idx) => `
+        <div class="label-border">
+          <div class="header">
+            <span class="lab-name">LABMATE360</span>
+            <span class="label-num">${idx + 1} of ${totalLabels}</span>
+            <span class="date-time">${dateStr}<br/>${timeStr}</span>
+          </div>
+          <div class="sample-id">${sampleId}</div>
+          <div class="barcode" data-code="${sampleId}"></div>
+          <div class="test-name">${test.name || 'Test'}</div>
+          <div class="patient-info">
+            <span class="patient-name">${patientName}</span>
+            <span>${ageGender}</span>
+          </div>
+        </div>
+      `).join('')
+      : `
         <div class="label-border">
           <div class="header">
             <span class="lab-name">LABMATE360</span>
             <span class="date-time">${dateStr}<br/>${timeStr}</span>
           </div>
           <div class="sample-id">${sampleId}</div>
-          <div class="barcode" id="barcode"></div>
-          <div class="tests">${tests}</div>
+          <div class="barcode" data-code="${sampleId}"></div>
+          <div class="test-name">${row.displayName || 'Tests'}</div>
           <div class="patient-info">
             <span class="patient-name">${patientName}</span>
             <span>${ageGender}</span>
           </div>
         </div>
+      `;
+
+    const labelHTML = `
+      <!DOCTYPE html>
+      <html><head><title>Sample Labels - ${sampleId}</title>
+      <style>
+        @page { size: 3in 1.8in; margin: 0; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; width: 3in; padding: 0; }
+        .label-border { border: 1.5px solid #333; border-radius: 4px; padding: 5px 8px; height: 1.65in; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; margin: 4px 6px; }
+        .label-border:last-child { page-break-after: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #999; padding-bottom: 3px; margin-bottom: 3px; }
+        .lab-name { font-size: 8px; font-weight: bold; color: #333; letter-spacing: 0.5px; }
+        .label-num { font-size: 7px; font-weight: bold; color: #fff; background: #333; padding: 1px 5px; border-radius: 3px; }
+        .date-time { font-size: 7px; color: #666; text-align: right; }
+        .sample-id { font-family: 'Courier New', monospace; font-size: 13px; font-weight: bold; letter-spacing: 1px; text-align: center; padding: 2px 0; }
+        .barcode { display: flex; justify-content: center; gap: 1px; padding: 2px 0; }
+        .barcode span { display: inline-block; height: 18px; background: #000; }
+        .test-name { font-size: 9px; font-weight: 600; color: #222; text-align: center; padding: 2px 4px; background: #f0f0f0; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .patient-info { display: flex; justify-content: space-between; font-size: 9px; border-top: 1px dashed #999; padding-top: 3px; margin-top: 2px; }
+        .patient-name { font-weight: bold; color: #111; }
+        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+      </style></head>
+      <body>
+        ${labelsHTML}
         <script>
-          // Simple barcode visualization from sample ID
-          const code = '${sampleId}';
-          const container = document.getElementById('barcode');
-          for (let i = 0; i < code.length; i++) {
-            const c = code.charCodeAt(i);
-            const w = (c % 3) + 1;
-            const bar = document.createElement('span');
-            bar.style.width = w + 'px';
-            container.appendChild(bar);
-            const gap = document.createElement('span');
-            gap.style.width = '1px';
-            gap.style.background = 'transparent';
-            container.appendChild(gap);
-          }
+          // Generate barcode for each label
+          document.querySelectorAll('.barcode').forEach(container => {
+            const code = container.getAttribute('data-code') || '';
+            for (let i = 0; i < code.length; i++) {
+              const c = code.charCodeAt(i);
+              const w = (c % 3) + 1;
+              const bar = document.createElement('span');
+              bar.style.width = w + 'px';
+              container.appendChild(bar);
+              const gap = document.createElement('span');
+              gap.style.width = '1px';
+              gap.style.background = 'transparent';
+              container.appendChild(gap);
+            }
+          });
           window.onload = () => window.print();
         <\/script>
       </body></html>
     `;
 
-    const printWindow = window.open('', '_blank', 'width=320,height=200');
+    const printWindow = window.open('', '_blank', 'width=340,height=260');
     if (printWindow) {
       printWindow.document.write(labelHTML);
       printWindow.document.close();

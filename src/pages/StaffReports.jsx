@@ -22,6 +22,7 @@ import {
   Send
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 import DashboardTable from '../components/common/DashboardTable';
 import StatusBadge from '../components/common/StatusBadge';
@@ -275,7 +276,12 @@ const StaffReports = () => {
       accessor: 'userId',
       render: (row) => (
         <div>
-          <div className="font-medium text-gray-900">{row.userId?.firstName} {row.userId?.lastName}</div>
+          <Link
+            to={`/staff/patient-history/${row.userId?._id}`}
+            className="font-medium text-primary-700 hover:text-primary-900 hover:underline"
+          >
+            {row.userId?.firstName} {row.userId?.lastName}
+          </Link>
           <div className="text-xs text-gray-500">{row.userId?.email}</div>
         </div>
       )

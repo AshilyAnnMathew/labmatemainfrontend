@@ -458,6 +458,8 @@ Patient: ${patientInfo}\n${analysisData}\n\nProvide clear, patient-friendly anal
         booking.testResults.forEach((tr, idx) => {
           const testName = testNameById.get(tr.testId?._id || tr.testId) || `Test ${idx + 1}`
           const values = tr.values || []
+          const hasValues = values.length > 0
+          const hasImagingFile = !!tr.resultFile
           const testAbnormals = values.filter(v => checkAbnormal(v.value, v.referenceRange).abnormal).length
 
           totalParams += values.length
@@ -474,13 +476,18 @@ Patient: ${patientInfo}\n${analysisData}\n\nProvide clear, patient-friendly anal
           doc.setTextColor(...darkBlue)
           doc.text(`${idx + 1}. ${String(testName)}`, ml + 3, y + 5.5)
 
-          // Abnormal badge on right
-          if (testAbnormals > 0) {
+          // Abnormal badge or imaging badge on right
+          if (hasImagingFile && !hasValues) {
+            doc.setFontSize(7)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(13, 148, 136) // teal
+            doc.text('IMAGING TEST', mr - 3, y + 5.5, { align: 'right' })
+          } else if (testAbnormals > 0) {
             doc.setFontSize(7)
             doc.setFont('helvetica', 'bold')
             doc.setTextColor(...red)
             doc.text(`${testAbnormals} ABNORMAL`, mr - 3, y + 5.5, { align: 'right' })
-          } else {
+          } else if (hasValues) {
             doc.setFontSize(7)
             doc.setFont('helvetica', 'bold')
             doc.setTextColor(34, 197, 94)
@@ -490,64 +497,143 @@ Patient: ${patientInfo}\n${analysisData}\n\nProvide clear, patient-friendly anal
           doc.setTextColor(...darkText)
           y += 10
 
-          // ── Table header ──
-          const colX = { param: ml + 2, value: ml + 60, flag: ml + 95, unit: ml + 108, range: ml + 140 }
+          // ── Tabular results (if present) ──
+          if (hasValues) {
+            // ── Table header ──
+            const colX = { param: ml + 2, value: ml + 60, flag: ml + 95, unit: ml + 108, range: ml + 140 }
 
-          doc.setFillColor(...medGray)
-          doc.rect(ml, y, cw, 6, 'F')
-          doc.setFontSize(7)
-          doc.setFont('helvetica', 'bold')
-          doc.setTextColor(75, 85, 99)
-          doc.text('PARAMETER', colX.param, y + 4)
-          doc.text('RESULT', colX.value, y + 4)
-          doc.text('FLAG', colX.flag, y + 4)
-          doc.text('UNIT', colX.unit, y + 4)
-          doc.text('REFERENCE RANGE', colX.range, y + 4)
-          doc.setTextColor(...darkText)
-          y += 8
-
-          // ── Table rows ──
-          values.forEach((v, vi) => {
-            checkPageBreak(12)
-
-            // Alternating row background
-            if (vi % 2 === 0) {
-              doc.setFillColor(249, 250, 251)
-              doc.rect(ml, y - 3, cw, 6, 'F')
-            }
-
-            const { abnormal, flag } = checkAbnormal(v.value, v.referenceRange)
-
-            doc.setFontSize(8)
-            doc.setFont('helvetica', 'normal')
+            doc.setFillColor(...medGray)
+            doc.rect(ml, y, cw, 6, 'F')
+            doc.setFontSize(7)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(75, 85, 99)
+            doc.text('PARAMETER', colX.param, y + 4)
+            doc.text('RESULT', colX.value, y + 4)
+            doc.text('FLAG', colX.flag, y + 4)
+            doc.text('UNIT', colX.unit, y + 4)
+            doc.text('REFERENCE RANGE', colX.range, y + 4)
             doc.setTextColor(...darkText)
-            doc.text(String(v.label || '-'), colX.param, y)
+            y += 8
 
-            // Value - bold+red if abnormal
-            if (abnormal) {
-              doc.setFont('helvetica', 'bold')
-              doc.setTextColor(...red)
+            // ── Table rows ──
+            values.forEach((v, vi) => {
+              checkPageBreak(12)
+
+              // Alternating row background
+              if (vi % 2 === 0) {
+                doc.setFillColor(249, 250, 251)
+                doc.rect(ml, y - 3, cw, 6, 'F')
+              }
+
+              const { abnormal, flag } = checkAbnormal(v.value, v.referenceRange)
+
+              doc.setFontSize(8)
+              doc.setFont('helvetica', 'normal')
+              doc.setTextColor(...darkText)
+              doc.text(String(v.label || '-'), colX.param, y)
+
+              // Value - bold+red if abnormal
+              if (abnormal) {
+                doc.setFont('helvetica', 'bold')
+                doc.setTextColor(...red)
+              }
+              doc.text(String(v.value ?? '-'), colX.value, y)
+
+              // Flag column
+              if (flag) {
+                doc.setFontSize(7)
+                doc.setFont('helvetica', 'bold')
+                doc.setTextColor(...red)
+                doc.text(flag === 'H' ? 'HIGH' : 'LOW', colX.flag, y)
+              }
+
+              // Reset color for unit and range
+              doc.setFont('helvetica', 'normal')
+              doc.setTextColor(107, 114, 128)
+              doc.setFontSize(7.5)
+              doc.text(String(v.unit || '-'), colX.unit, y)
+              doc.text(String(v.referenceRange || '-'), colX.range, y)
+
+              doc.setTextColor(...darkText)
+              y += 6
+            })
+          }
+
+          // ── Imaging Result Section (resultFile / findings) ──
+          if (hasImagingFile || tr.findings) {
+            checkPageBreak(30)
+
+            // Imaging info box background
+            const boxStartY = y
+            doc.setFillColor(240, 253, 250) // teal-50
+            doc.setDrawColor(153, 246, 228) // teal-200
+            doc.setLineWidth(0.4)
+
+            // Build imaging content lines
+            const imagingLines = []
+
+            if (hasImagingFile) {
+              const fileName = tr.resultFile.split('/').pop() || 'imaging-result'
+              const fileExt = tr.resultFile.split('.').pop().toUpperCase()
+              imagingLines.push({ type: 'file', text: `Imaging Result File: ${fileName} (${fileExt})` })
+              imagingLines.push({ type: 'note', text: 'Note: The imaging file can be downloaded separately from the report details page.' })
             }
-            doc.text(String(v.value ?? '-'), colX.value, y)
 
-            // Flag column
-            if (flag) {
-              doc.setFontSize(7)
-              doc.setFont('helvetica', 'bold')
-              doc.setTextColor(...red)
-              doc.text(flag === 'H' ? 'HIGH' : 'LOW', colX.flag, y)
+            if (tr.findings) {
+              imagingLines.push({ type: 'heading', text: 'Findings / Interpretation:' })
+              const findingsWrapped = doc.splitTextToSize(String(tr.findings), cw - 12)
+              findingsWrapped.forEach(line => imagingLines.push({ type: 'finding', text: line }))
             }
 
-            // Reset color for unit and range
-            doc.setFont('helvetica', 'normal')
-            doc.setTextColor(107, 114, 128)
-            doc.setFontSize(7.5)
-            doc.text(String(v.unit || '-'), colX.unit, y)
-            doc.text(String(v.referenceRange || '-'), colX.range, y)
+            // Calculate box height
+            let boxH = 6 // padding top/bottom
+            imagingLines.forEach(l => {
+              if (l.type === 'heading') boxH += 6
+              else boxH += 5
+            })
+            boxH = Math.max(boxH, 12)
 
+            // Check page break with full box height
+            checkPageBreak(boxH + 5)
+
+            // Draw box
+            doc.setFillColor(240, 253, 250)
+            doc.setDrawColor(153, 246, 228)
+            doc.roundedRect(ml, y, cw, boxH, 1.5, 1.5, 'FD')
+
+            let iy = y + 5
+
+            imagingLines.forEach(l => {
+              if (l.type === 'file') {
+                doc.setFontSize(8)
+                doc.setFont('helvetica', 'bold')
+                doc.setTextColor(13, 148, 136) // teal-600
+                doc.text(l.text, ml + 5, iy)
+                iy += 5
+              } else if (l.type === 'note') {
+                doc.setFontSize(7)
+                doc.setFont('helvetica', 'italic')
+                doc.setTextColor(107, 114, 128)
+                doc.text(l.text, ml + 5, iy)
+                iy += 5
+              } else if (l.type === 'heading') {
+                doc.setFontSize(8)
+                doc.setFont('helvetica', 'bold')
+                doc.setTextColor(15, 118, 110) // teal-700
+                doc.text(l.text, ml + 5, iy)
+                iy += 6
+              } else if (l.type === 'finding') {
+                doc.setFontSize(8)
+                doc.setFont('helvetica', 'normal')
+                doc.setTextColor(...darkText)
+                doc.text(l.text, ml + 5, iy)
+                iy += 5
+              }
+            })
+
+            y += boxH + 3
             doc.setTextColor(...darkText)
-            y += 6
-          })
+          }
 
           // Bottom border for test table
           doc.setDrawColor(...medGray)

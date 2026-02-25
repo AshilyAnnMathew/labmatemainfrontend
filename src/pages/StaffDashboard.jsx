@@ -21,6 +21,7 @@ import StaffDashboardOverview from './StaffDashboardOverview'
 import AssignedOverview from './AssignedOverview'
 import SampleTrackingPanel from './SampleTrackingPanel'
 import ActivityLog from './ActivityLog'
+import StaffPatientHistory from './StaffPatientHistory'
 import Profile from './Profile'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
@@ -121,6 +122,7 @@ const StaffDashboard = () => {
         <Route path="/communication" element={<StaffPatientCommunication />} />
         <Route path="/active-samples" element={<SampleTrackingPanel assignedLab={assignedLab} />} />
         <Route path="/activity-logs" element={<ActivityLog assignedLab={assignedLab} />} />
+        <Route path="/patient-history/:patientId" element={<StaffPatientHistory />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="*" element={<Navigate to="/staff/dashboard" replace />} />
       </Routes>

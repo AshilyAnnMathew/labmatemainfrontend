@@ -967,6 +967,26 @@ export const bookingAPI = {
       console.error('Error fetching lab reports:', error);
       throw error;
     }
+  },
+
+  // Get patient history (staff only)
+  getPatientHistory: async (userId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/bookings/patient/${userId}/history`, {
+        headers: {
+          'Authorization': `Bearer ${getAuthToken()}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch patient history');
+      }
+      return data;
+    } catch (error) {
+      console.error('Error fetching patient history:', error);
+      throw error;
+    }
   }
 
 };

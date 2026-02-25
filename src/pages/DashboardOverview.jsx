@@ -13,11 +13,16 @@ import {
     Wind,
     Brain,
     Heart,
-    X
+    X,
+    Download,
+    Shield,
+    Beaker,
+    Loader2
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { bookingAPI, respiratoryAPI, mentalWellnessAPI, vitalsAPI } from '../services/api'
 import PPGMonitor from '../components/PPG/PPGMonitor'
+import jsPDF from 'jspdf'
 
 const DashboardOverview = () => {
     const { user } = useAuth()
@@ -36,11 +41,307 @@ const DashboardOverview = () => {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [showPPGModal, setShowPPGModal] = useState(false)
+    const [generatingReport, setGeneratingReport] = useState(false)
 
     useEffect(() => {
         fetchDashboardData()
     }, [])
 
+    const generateConsolidatedReport = async () => {
+        try {
+            setGeneratingReport(true)
+
+            // 1. Fetch all bookings with published results
+            const bookingsRes = await bookingAPI.getBookings('all', 1, 100)
+            const publishedBookings = (bookingsRes?.data || bookingsRes || [])
+                .filter(b => b.status === 'result_published' || b.status === 'completed')
+                .sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate))
+
+            // 2. Fetch all vitals history
+            const vitalsRes = await vitalsAPI.getHistory()
+            const vitalsHistory = (vitalsRes?.data || vitalsRes || [])
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
+            // 3. Generate PDF
+            const doc = new jsPDF()
+            const pw = doc.internal.pageSize.getWidth()
+            const ph = doc.internal.pageSize.getHeight()
+            const ml = 15
+            const mr = pw - 15
+            const cw = mr - ml
+            let y = 0
+
+            // Colors
+            const navy = [21, 55, 96]
+            const darkBlue = [30, 64, 175]
+            const teal = [13, 148, 136]
+            const lightGray = [248, 250, 252]
+            const medGray = [229, 231, 235]
+            const darkText = [31, 41, 55]
+            const red = [220, 38, 38]
+            const white = [255, 255, 255]
+
+            const formatDate = (d) => new Date(d).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })
+            const formatDateTime = (d) => new Date(d).toLocaleString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+            const isAbnormal = (val, rangeStr) => {
+                if (!val || !rangeStr || isNaN(val)) return false
+                const parts = rangeStr.replace(/\s/g, '').split('-')
+                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                    const numVal = parseFloat(val), lo = parseFloat(parts[0]), hi = parseFloat(parts[1])
+                    return numVal < lo || numVal > hi
+                }
+                return false
+            }
+
+            const checkPageBreak = (needed = 30) => {
+                if (y > ph - needed - 20) {
+                    doc.addPage()
+                    y = 20
+                    return true
+                }
+                return false
+            }
+
+            const addFooter = (curr, total) => {
+                doc.setDrawColor(...medGray)
+                doc.setLineWidth(0.3)
+                doc.line(ml, ph - 20, mr, ph - 20)
+                doc.setFontSize(7)
+                doc.setFont('helvetica', 'normal')
+                doc.setTextColor(156, 163, 175)
+                doc.text('Consolidated Health Report - LabMate360', ml, ph - 15)
+                doc.text(`Generated on ${new Date().toLocaleDateString()}`, ml, ph - 11)
+                doc.text(`Page ${curr} of ${total}`, mr, ph - 15, { align: 'right' })
+            }
+
+            // --- PAGE 1: COVER & PROFILE ---
+            doc.setFillColor(...navy)
+            doc.rect(0, 0, pw, 50, 'F')
+            doc.setTextColor(...white)
+            doc.setFontSize(24)
+            doc.setFont('helvetica', 'bold')
+            doc.text('CONSOLIDATED HEALTH REPORT', pw / 2, 28, { align: 'center' })
+            doc.setFontSize(10)
+            doc.setFont('helvetica', 'normal')
+            doc.text('Comprehensive Wellness Summary & Medical History', pw / 2, 38, { align: 'center' })
+
+            doc.setFillColor(...teal)
+            doc.rect(0, 50, pw, 3, 'F')
+
+            y = 70
+            doc.setTextColor(...darkText)
+            doc.setFontSize(14)
+            doc.setFont('helvetica', 'bold')
+            doc.text('PATIENT PROFILE', ml, y)
+            y += 8
+            doc.setDrawColor(...medGray)
+            doc.line(ml, y, mr, y)
+            y += 10
+
+            doc.setFontSize(10)
+            doc.setFont('helvetica', 'bold')
+            doc.text('Name:', ml, y)
+            doc.setFont('helvetica', 'normal')
+            doc.text(`${user?.firstName} ${user?.lastName}`, ml + 25, y)
+
+            doc.setFont('helvetica', 'bold')
+            doc.text('Age / Gender:', ml, y + 8)
+            doc.setFont('helvetica', 'normal')
+            doc.text(`${user?.age || '—'} / ${user?.gender || '—'}`, ml + 25, y + 8)
+
+            doc.setFont('helvetica', 'bold')
+            doc.text('Contact:', ml, y + 16)
+            doc.setFont('helvetica', 'normal')
+            doc.text(`${user?.email || '—'} | ${user?.phone || '—'}`, ml + 25, y + 16)
+
+            doc.setFont('helvetica', 'bold')
+            doc.text('Address:', ml, y + 24)
+            doc.setFont('helvetica', 'normal')
+            const addr = user?.address || '—'
+            const splitAddr = doc.splitTextToSize(addr, cw - 25)
+            doc.text(splitAddr, ml + 25, y + 24)
+
+            y += 40
+
+            // Latest Vitals Subsection
+            if (stats.vitals) {
+                doc.setFillColor(...lightGray)
+                doc.roundedRect(ml, y, cw, 35, 2, 2, 'F')
+                doc.setFontSize(11)
+                doc.setFont('helvetica', 'bold')
+                doc.setTextColor(...darkBlue)
+                doc.text('LATEST VITALS SUMMARY', ml + 5, y + 8)
+
+                doc.setFontSize(9)
+                doc.setTextColor(...darkText)
+                doc.setFont('helvetica', 'normal')
+
+                let vx = ml + 5
+                if (stats.vitals.ppg) {
+                    doc.text('Heart Rate:', vx, y + 18)
+                    doc.setFont('helvetica', 'bold')
+                    doc.text(`${stats.vitals.ppg.heartRate} BPM`, vx, y + 24)
+                    doc.setFont('helvetica', 'normal')
+                    vx += 40
+                    doc.text('SpO2:', vx, y + 18)
+                    doc.setFont('helvetica', 'bold')
+                    doc.text(`${stats.vitals.ppg.spo2}%`, vx, y + 24)
+                    doc.setFont('helvetica', 'normal')
+                    vx += 35
+                }
+                if (stats.vitals.bloodPressure) {
+                    doc.text('Blood Pressure:', vx, y + 18)
+                    doc.setFont('helvetica', 'bold')
+                    doc.text(`${stats.vitals.bloodPressure.value}`, vx, y + 24)
+                    doc.setFont('helvetica', 'normal')
+                    vx += 45
+                }
+                if (stats.vitals.bloodSugar) {
+                    doc.text('Blood Sugar:', vx, y + 18)
+                    doc.setFont('helvetica', 'bold')
+                    doc.text(`${stats.vitals.bloodSugar.value}`, vx, y + 24)
+                    doc.setFont('helvetica', 'normal')
+                }
+            }
+
+            y += 50
+
+            // --- VITALS HISTORY TABLE ---
+            if (vitalsHistory.length > 0) {
+                checkPageBreak(60)
+                doc.setFontSize(12)
+                doc.setFont('helvetica', 'bold')
+                doc.setTextColor(...navy)
+                doc.text('VITALS HISTORY', ml, y)
+                y += 6
+
+                // Header
+                doc.setFillColor(...medGray)
+                doc.rect(ml, y, cw, 7, 'F')
+                doc.setFontSize(8)
+                doc.setTextColor(75, 85, 99)
+                doc.text('DATE & TIME', ml + 2, y + 5)
+                doc.text('HEART RATE', ml + 45, y + 5)
+                doc.text('SPO2', ml + 75, y + 5)
+                doc.text('BLOOD PRESSURE', ml + 100, y + 5)
+                doc.text('BLOOD SUGAR', ml + 140, y + 5)
+                y += 10
+
+                doc.setFont('helvetica', 'normal')
+                vitalsHistory.slice(0, 10).forEach((v, i) => {
+                    checkPageBreak(10)
+                    if (i % 2 === 0) {
+                        doc.setFillColor(249, 250, 251)
+                        doc.rect(ml, y - 4, cw, 7, 'F')
+                    }
+                    doc.setTextColor(...darkText)
+                    doc.text(formatDateTime(v.createdAt), ml + 2, y)
+                    doc.text(v.heartRate ? `${v.heartRate} BPM` : '—', ml + 45, y)
+                    doc.text(v.spo2 ? `${v.spo2}%` : '—', ml + 75, y)
+                    doc.text(v.bloodPressure?.value || '—', ml + 100, y)
+                    doc.text(v.bloodSugar?.value || '—', ml + 140, y)
+                    y += 7
+                })
+                y += 10
+            }
+
+            // --- TEST RESULTS ---
+            if (publishedBookings.length > 0) {
+                publishedBookings.forEach(b => {
+                    checkPageBreak(40)
+                    y += 5
+                    doc.setFillColor(...navy)
+                    doc.rect(ml, y, cw, 8, 'F')
+                    doc.setTextColor(...white)
+                    doc.setFontSize(10)
+                    doc.setFont('helvetica', 'bold')
+                    doc.text(`${formatDate(b.appointmentDate)} - ${b.labId?.name || 'Lab'}`, ml + 4, y + 5.5);
+                    y += 12;
+
+                    (b.testResults || []).forEach(tr => {
+                        const testName = tr.testId?.name || 'Diagnostic Test';
+                        checkPageBreak(30)
+                        doc.setFontSize(9)
+                        doc.setFont('helvetica', 'bold')
+                        doc.setTextColor(...darkBlue)
+                        doc.text(testName, ml + 2, y)
+                        y += 5
+
+                        if (tr.values && tr.values.length > 0) {
+                            // Sub-table header
+                            doc.setFillColor(243, 244, 246)
+                            doc.rect(ml + 2, y, cw - 4, 6, 'F')
+                            doc.setFontSize(7.5)
+                            doc.setTextColor(107, 114, 128)
+                            doc.text('PARAMETER', ml + 5, y + 4)
+                            doc.text('RESULT', ml + 60, y + 4)
+                            doc.text('UNIT', ml + 90, y + 4)
+                            doc.text('REFERENCE RANGE', ml + 120, y + 4)
+                            y += 9
+
+                            doc.setFont('helvetica', 'normal')
+                            tr.values.forEach(v => {
+                                checkPageBreak(8)
+                                const flagged = isAbnormal(v.value, v.referenceRange)
+                                if (flagged) {
+                                    doc.setTextColor(...red)
+                                    doc.setFont('helvetica', 'bold')
+                                } else {
+                                    doc.setTextColor(...darkText)
+                                    doc.setFont('helvetica', 'normal')
+                                }
+                                doc.text(String(v.label || '—'), ml + 5, y)
+                                doc.text(String(v.value || '—'), ml + 60, y)
+                                doc.setTextColor(107, 114, 128)
+                                doc.setFont('helvetica', 'normal')
+                                doc.text(String(v.unit || '—'), ml + 90, y)
+                                doc.text(String(v.referenceRange || '—'), ml + 120, y)
+                                y += 6
+                            })
+                            y += 4
+                        }
+
+                        if (tr.findings) {
+                            checkPageBreak(20)
+                            doc.setFontSize(8)
+                            doc.setFont('helvetica', 'bold')
+                            doc.setTextColor(...teal)
+                            doc.text('Findings:', ml + 5, y)
+                            y += 4
+                            doc.setFont('helvetica', 'normal')
+                            doc.setTextColor(...darkText)
+                            const findingsLines = doc.splitTextToSize(tr.findings, cw - 20)
+                            doc.text(findingsLines, ml + 5, y)
+                            y += (findingsLines.length * 4) + 4
+                        }
+                    })
+                    y += 5
+                })
+            } else {
+                y += 10
+                doc.setFontSize(10)
+                doc.setFont('helvetica', 'italic')
+                doc.setTextColor(156, 163, 175)
+                doc.text('No published lab results found to include in the report.', ml, y)
+            }
+
+            // Footer numbering
+            const total = doc.internal.getNumberOfPages()
+            for (let i = 1; i <= total; i++) {
+                doc.setPage(i)
+                addFooter(i, total)
+            }
+
+            doc.save(`Consolidated_Health_Report_${user?.firstName || 'Patient'}.pdf`)
+
+        } catch (err) {
+            console.error('Report Generation Error:', err)
+            alert('Failed to generate report. Please try again.')
+        } finally {
+            setGeneratingReport(false)
+        }
+    }
     const fetchDashboardData = async () => {
         try {
             setLoading(true)
@@ -388,7 +689,6 @@ const DashboardOverview = () => {
                                 </div>
                                 <ChevronRight className="h-5 w-5 text-gray-300 ml-auto group-hover:text-primary-500" />
                             </Link>
-
                             <Link
                                 to="/user/dashboard/upload-prescription"
                                 className="flex items-center p-4 rounded-xl border border-gray-100 hover:border-blue-100 hover:bg-blue-50 transition-all group"
@@ -402,6 +702,21 @@ const DashboardOverview = () => {
                                 </div>
                                 <ChevronRight className="h-5 w-5 text-gray-300 ml-auto group-hover:text-blue-500" />
                             </Link>
+
+                            <button
+                                onClick={generateConsolidatedReport}
+                                disabled={generatingReport}
+                                className="w-full flex items-center p-4 rounded-xl border border-gray-100 hover:border-emerald-100 hover:bg-emerald-50 transition-all group"
+                            >
+                                <div className="p-2 bg-emerald-100 rounded-lg text-emerald-600 group-hover:bg-white group-hover:shadow-sm">
+                                    {generatingReport ? <Loader2 className="h-5 h-5 animate-spin" /> : <Download className="h-5 w-5" />}
+                                </div>
+                                <div className="ml-4 text-left">
+                                    <p className="font-medium text-gray-900">Health Report</p>
+                                    <p className="text-xs text-gray-500">Consolidated history PDF</p>
+                                </div>
+                                <ChevronRight className="h-5 w-5 text-gray-300 ml-auto group-hover:text-emerald-500" />
+                            </button>
                         </div>
 
                         {/* Health Tip */}
@@ -421,19 +736,21 @@ const DashboardOverview = () => {
             </div>
 
             {/* PPG Modal */}
-            {showPPGModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden relative">
-                        <button
-                            onClick={() => setShowPPGModal(false)}
-                            className="absolute top-3 right-3 p-1 rounded-full bg-white/80 hover:bg-gray-100 text-gray-500 z-10"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
-                        <PPGMonitor onComplete={handlePPGComplete} />
+            {
+                showPPGModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden relative">
+                            <button
+                                onClick={() => setShowPPGModal(false)}
+                                className="absolute top-3 right-3 p-1 rounded-full bg-white/80 hover:bg-gray-100 text-gray-500 z-10"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                            <PPGMonitor onComplete={handlePPGComplete} />
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
         </div>
     )
 }
