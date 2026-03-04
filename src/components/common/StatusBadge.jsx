@@ -13,6 +13,8 @@ const getStatusConfig = (status) => {
         completed: { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'Completed' },
         cancelled: { color: 'bg-red-50 text-red-700 border-red-200', label: 'Cancelled' },
         rejected: { color: 'bg-red-50 text-red-700 border-red-200', label: 'Rejected' },
+        no_show: { color: 'bg-gray-100 text-gray-800 border-gray-300', label: 'No Show' },
+        partially_completed: { color: 'bg-amber-50 text-amber-700 border-amber-200', label: 'Partial' },
 
         // Payment Statuses
         paid: { color: 'bg-green-50 text-green-700 border-green-200', label: 'Paid' },

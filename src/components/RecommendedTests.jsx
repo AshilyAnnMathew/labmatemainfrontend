@@ -1,9 +1,9 @@
 
 import React from 'react';
-import { AlertCircle, ArrowRight, Activity, Thermometer, Droplet, CheckCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { AlertCircle, ArrowRight, Activity, CheckCircle, Sparkles, Cpu } from 'lucide-react';
+import { useNavigate, createSearchParams } from 'react-router-dom';
 
-const RecommendedTests = ({ recommendations, loading }) => {
+const RecommendedTests = ({ recommendations, loading, source }) => {
     const navigate = useNavigate();
 
     if (loading) {
@@ -32,7 +32,6 @@ const RecommendedTests = ({ recommendations, loading }) => {
         );
     }
 
-    // Helper to get priority color
     const getPriorityColor = (priority) => {
         switch (priority?.toLowerCase()) {
             case 'high': return 'bg-red-50 text-red-700 border-red-100';
@@ -41,11 +40,21 @@ const RecommendedTests = ({ recommendations, loading }) => {
         }
     };
 
-    const handleBookTest = (testName) => {
-        // Navigate to booking page, potentially pre-filling search
-        // For now, just go to booking page with a query param if supported, or just the page
-        navigate('/user/dashboard/book-test');
+    const getConfidenceColor = (conf) => {
+        if (conf >= 80) return 'bg-emerald-100 text-emerald-800';
+        if (conf >= 60) return 'bg-blue-100 text-blue-800';
+        if (conf >= 40) return 'bg-amber-100 text-amber-800';
+        return 'bg-gray-100 text-gray-600';
     };
+
+    const handleBookTest = (testName) => {
+        navigate({
+            pathname: '/user/dashboard/book-tests',
+            search: `?test=${encodeURIComponent(testName)}`
+        });
+    };
+
+    const isML = recommendations.some(r => r.mlPowered);
 
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -55,22 +64,37 @@ const RecommendedTests = ({ recommendations, loading }) => {
                         <Activity className="w-5 h-5 text-indigo-600 mr-2" />
                         Recommended Tests
                     </h2>
-                    <p className="text-sm text-gray-500 mt-1">AI-driven suggestions for your health profile</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                        {isML ? 'Machine Learning powered suggestions based on your health profile' : 'AI-driven suggestions for your health profile'}
+                    </p>
                 </div>
-                <span className="bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded-full font-medium">
-                    {recommendations.length} New
-                </span>
+                <div className="flex items-center gap-2">
+                    {isML && (
+                        <span className="flex items-center gap-1 bg-gradient-to-r from-purple-50 to-indigo-50 text-indigo-700 text-xs px-3 py-1.5 rounded-full font-semibold border border-indigo-100">
+                            <Sparkles className="w-3.5 h-3.5" />
+                            ML-Powered
+                        </span>
+                    )}
+                    <span className="bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded-full font-medium">
+                        {recommendations.length} {recommendations.length === 1 ? 'Test' : 'Tests'}
+                    </span>
+                </div>
             </div>
 
             <div className="space-y-4">
                 {recommendations.map((rec, index) => (
                     <div key={index} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-lg border border-gray-100 hover:border-indigo-100 hover:shadow-xs transition-all duration-200">
                         <div className="flex-1">
-                            <div className="flex items-center mb-1">
+                            <div className="flex items-center flex-wrap gap-2 mb-1">
                                 <h3 className="font-medium text-gray-900">{rec.testName}</h3>
-                                <span className={`ml-3 text-xs px-2 py-0.5 rounded-full border ${getPriorityColor(rec.priority)}`}>
+                                <span className={`text-xs px-2 py-0.5 rounded-full border ${getPriorityColor(rec.priority)}`}>
                                     {rec.priority} Priority
                                 </span>
+                                {rec.confidence != null && (
+                                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${getConfidenceColor(rec.confidence)}`}>
+                                        {rec.confidence}% confidence
+                                    </span>
+                                )}
                             </div>
                             <p className="text-sm text-gray-600 flex items-start mt-1">
                                 <AlertCircle className="w-3 h-3 text-gray-400 mr-1 mt-0.5 flex-shrink-0" />
@@ -87,8 +111,17 @@ const RecommendedTests = ({ recommendations, loading }) => {
                     </div>
                 ))}
             </div>
+
+            {/* Source indicator */}
+            {isML && (
+                <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-400">
+                    <Cpu className="w-3.5 h-3.5" />
+                    <span>Predictions generated by Random Forest ML model trained on clinical health data</span>
+                </div>
+            )}
         </div>
     );
 };
 
 export default RecommendedTests;
+

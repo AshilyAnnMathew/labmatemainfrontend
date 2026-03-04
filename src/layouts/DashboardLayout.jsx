@@ -12,6 +12,7 @@ import {
   LayoutDashboard
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import NotificationBell from '../components/NotificationBell'
 
 const DashboardLayout = ({
   children,
@@ -177,10 +178,7 @@ const DashboardLayout = ({
             </div>
 
             {/* Notification Bell */}
-            <button className="relative p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-all">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full border border-white"></span>
-            </button>
+            <NotificationBell />
 
             <div className="h-6 w-px bg-gray-200 mx-1"></div>
 

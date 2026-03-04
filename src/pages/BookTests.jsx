@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   MapPin,
   Clock,
@@ -46,6 +47,18 @@ const BookTests = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [showAllLabs, setShowAllLabs] = useState(false)
   const [bookingStep, setBookingStep] = useState(1) // 1: Lab Selection, 2: Test Selection, 3: Schedule, 4: Payment, 5: Confirm
+  const [recommendedTestName, setRecommendedTestName] = useState('') // From Health Insights "Book Now"
+
+  // Read ?test= query parameter from URL (set by RecommendedTests "Book Now" button)
+  const [searchParams] = useSearchParams()
+  useEffect(() => {
+    const testParam = searchParams.get('test')
+    if (testParam) {
+      setRecommendedTestName(testParam)
+      // Show all labs so the user can find a lab offering this test
+      setShowAllLabs(true)
+    }
+  }, [searchParams])
 
   // Available time slots
   const timeSlots = [
@@ -214,6 +227,17 @@ const BookTests = () => {
 
       console.log('Updated lab with details:', updatedLab)
       setSelectedLab(updatedLab)
+
+      // Auto-select the recommended test if it matches an available test
+      if (recommendedTestName && availableTests.length > 0) {
+        const matchingTest = availableTests.find(t =>
+          t.name.toLowerCase().includes(recommendedTestName.toLowerCase()) ||
+          recommendedTestName.toLowerCase().includes(t.name.toLowerCase())
+        )
+        if (matchingTest) {
+          setSelectedTests([matchingTest._id])
+        }
+      }
     } catch (err) {
       setError('Failed to fetch lab details')
       console.error('Error fetching lab details:', err)
@@ -568,6 +592,13 @@ const BookTests = () => {
     return today.toISOString().split('T')[0]
   }
 
+  // Get maximum date (10 days from today)
+  const getMaxDate = () => {
+    const maxDate = new Date()
+    maxDate.setDate(maxDate.getDate() + 10)
+    return maxDate.toISOString().split('T')[0]
+  }
+
   // Handle date change and reset time if needed
   const handleDateChange = (newDate) => {
     setSelectedDate(newDate)
@@ -870,6 +901,23 @@ const BookTests = () => {
               Change Lab
             </button>
           </div>
+
+          {/* Recommended test banner */}
+          {recommendedTestName && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-indigo-800">
+                <CheckCircle className="h-5 w-5 text-indigo-600" />
+                <span className="font-medium">Recommended test: <strong>{recommendedTestName}</strong></span>
+                <span className="text-sm text-indigo-600">— auto-selected below if available</span>
+              </div>
+              <button
+                onClick={() => setRecommendedTestName('')}
+                className="text-indigo-400 hover:text-indigo-600 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
 
           {/* Available Tests */}
           <div className="mb-10">
@@ -1193,8 +1241,10 @@ const BookTests = () => {
                   value={selectedDate}
                   onChange={(e) => handleDateChange(e.target.value)}
                   min={getMinDate()}
+                  max={getMaxDate()}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
+                <p className="text-xs text-gray-400 mt-1">You can book up to 10 days in advance</p>
               </div>
 
               <div>

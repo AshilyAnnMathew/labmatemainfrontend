@@ -120,8 +120,8 @@ const StaffPatientCommunication = () => {
                                     key={f}
                                     onClick={() => setFilter(f)}
                                     className={`flex-1 py-1.5 text-xs font-medium rounded-md capitalize transition-all ${filter === f
-                                            ? 'bg-white text-gray-900 shadow-sm'
-                                            : 'text-gray-500 hover:text-gray-700'
+                                        ? 'bg-white text-gray-900 shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-700'
                                         }`}
                                 >
                                     {f}

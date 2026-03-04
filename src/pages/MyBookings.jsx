@@ -20,10 +20,14 @@ import {
   FileText,
   Shield,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Bell,
+  BellRing,
+  MessageCircle
 } from 'lucide-react'
 import Swal from 'sweetalert2'
 import api from '../services/api'
+import ChatWidget from '../components/ChatWidget'
 
 const { bookingAPI } = api
 
@@ -50,6 +54,7 @@ const MyBookings = () => {
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [expandedCards, setExpandedCards] = useState({})
+  const [activeChat, setActiveChat] = useState(null)
 
   useEffect(() => {
     fetchBookings()
@@ -184,10 +189,10 @@ const MyBookings = () => {
             <div key={step.key} className="flex items-center flex-1 last:flex-none">
               <div className="flex flex-col items-center relative">
                 <div className={`h-7 w-7 rounded-full flex items-center justify-center border-2 transition-all ${isCurrent
-                    ? 'bg-primary-600 border-primary-600 text-white shadow-md shadow-primary-200 scale-110'
-                    : isReached
-                      ? 'bg-emerald-500 border-emerald-500 text-white'
-                      : 'bg-white border-gray-300 text-gray-400'
+                  ? 'bg-primary-600 border-primary-600 text-white shadow-md shadow-primary-200 scale-110'
+                  : isReached
+                    ? 'bg-emerald-500 border-emerald-500 text-white'
+                    : 'bg-white border-gray-300 text-gray-400'
                   }`}>
                   {isReached && !isCurrent ? <CheckCircle className="h-4 w-4" /> : <Icon className="h-3.5 w-3.5" />}
                 </div>
@@ -265,6 +270,15 @@ const MyBookings = () => {
               >
                 <Eye className="h-4 w-4" />
               </button>
+              {booking.status !== 'cancelled' && (
+                <button
+                  onClick={() => setActiveChat({ id: booking._id, labName: lab?.name })}
+                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md"
+                  title="Chat with Staff"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                </button>
+              )}
               {booking.status === 'pending' && (
                 <button onClick={() => handleCancelBooking(booking)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-md" title="Cancel">
                   <Trash2 className="h-4 w-4" />
@@ -282,6 +296,27 @@ const MyBookings = () => {
           {booking.status === 'cancelled' && (
             <div className="mb-3 bg-red-50 rounded-lg px-3 py-2">
               <StatusTracker status={booking.status} />
+            </div>
+          )}
+
+          {/* Booked Tests - shown directly on card */}
+          {(booking.selectedTests?.length > 0 || booking.selectedPackages?.length > 0) && (
+            <div className="mb-3 bg-blue-50/60 rounded-lg px-3 py-2.5 border border-blue-100">
+              <h4 className="text-[11px] font-semibold text-blue-800 uppercase tracking-wider mb-1.5">Booked For</h4>
+              <div className="flex flex-wrap gap-1.5">
+                {(booking.selectedTests || []).map((t, i) => (
+                  <span key={`t-${i}`} className="inline-flex items-center gap-1 bg-white text-gray-800 text-xs px-2 py-1 rounded-md border border-blue-200 shadow-sm">
+                    <FlaskConical className="h-3 w-3 text-primary-500" />
+                    {t.testName || t.testId?.name}
+                  </span>
+                ))}
+                {(booking.selectedPackages || []).map((p, i) => (
+                  <span key={`p-${i}`} className="inline-flex items-center gap-1 bg-white text-gray-800 text-xs px-2 py-1 rounded-md border border-indigo-200 shadow-sm">
+                    <Package className="h-3 w-3 text-indigo-500" />
+                    {p.packageName || p.packageId?.name}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 
@@ -364,12 +399,71 @@ const MyBookings = () => {
     )
   }
 
+  // Upcoming appointment notifications
+  const getUpcomingAppointments = () => {
+    const now = new Date()
+    const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
+    return bookings.filter(b => {
+      if (!['pending', 'confirmed'].includes(b.status)) return false
+      const apptDate = new Date(b.appointmentDate)
+      return apptDate >= now && apptDate <= in48h
+    }).sort((a, b) => new Date(a.appointmentDate) - new Date(b.appointmentDate))
+  }
+
+  const upcomingAppointments = getUpcomingAppointments()
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">My Bookings</h1>
         <p className="text-sm text-gray-500 mt-1">Track the status of your laboratory tests in real-time</p>
       </div>
+
+      {/* Upcoming Appointment Notifications */}
+      {upcomingAppointments.length > 0 && (
+        <div className="mb-6 space-y-3">
+          {upcomingAppointments.map(appt => {
+            const apptDate = new Date(appt.appointmentDate)
+            const isToday = apptDate.toDateString() === new Date().toDateString()
+            const isTomorrow = apptDate.toDateString() === new Date(Date.now() + 86400000).toDateString()
+            const dayLabel = isToday ? 'Today' : isTomorrow ? 'Tomorrow' : formatDate(appt.appointmentDate)
+            const testNames = [
+              ...(appt.selectedTests || []).map(t => t.testName || t.testId?.name),
+              ...(appt.selectedPackages || []).map(p => p.packageName || p.packageId?.name)
+            ].filter(Boolean).join(', ')
+
+            return (
+              <div key={`notif-${appt._id}`} className={`flex items-center gap-4 p-4 rounded-xl border shadow-sm ${isToday
+                ? 'bg-amber-50 border-amber-200'
+                : 'bg-blue-50 border-blue-200'
+                }`}>
+                <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${isToday ? 'bg-amber-100' : 'bg-blue-100'
+                  }`}>
+                  {isToday
+                    ? <BellRing className="h-5 w-5 text-amber-600 animate-pulse" />
+                    : <Bell className="h-5 w-5 text-blue-600" />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-semibold ${isToday ? 'text-amber-900' : 'text-blue-900'
+                    }`}>
+                    {isToday ? '🔔 Appointment Today!' : `📅 Upcoming Appointment — ${dayLabel}`}
+                  </p>
+                  <p className={`text-xs mt-0.5 ${isToday ? 'text-amber-700' : 'text-blue-700'
+                    }`}>
+                    <strong>{appt.labId?.name}</strong> at <strong>{appt.appointmentTime}</strong>
+                    {testNames && <> — {testNames}</>}
+                  </p>
+                </div>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${isToday ? 'bg-amber-200 text-amber-800' : 'bg-blue-200 text-blue-800'
+                  }`}>
+                  {dayLabel} @ {appt.appointmentTime}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Search + Filter */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
@@ -606,6 +700,14 @@ const MyBookings = () => {
           </div>
         )
       })()}
+      {/* Chat Widget */}
+      {activeChat && (
+        <ChatWidget
+          bookingId={activeChat.id}
+          labName={activeChat.labName}
+          onClose={() => setActiveChat(null)}
+        />
+      )}
     </div>
   )
 }
