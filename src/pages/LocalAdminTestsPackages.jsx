@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { TestTube, Package, Search, Filter } from 'lucide-react'
+import Swal from 'sweetalert2'
 import api from '../services/api'
 
 const LocalAdminTestsPackages = ({ assignedLab }) => {
@@ -8,7 +9,7 @@ const LocalAdminTestsPackages = ({ assignedLab }) => {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('tests')
   const [searchTerm, setSearchTerm] = useState('')
-  
+
 
   // Available tests/packages selection modal states
   const [showSelectTestsModal, setShowSelectTestsModal] = useState(false)
@@ -67,7 +68,7 @@ const LocalAdminTestsPackages = ({ assignedLab }) => {
       }
     } catch (error) {
       console.error('Error fetching available tests:', error)
-      alert('Error fetching available tests: ' + error.message)
+      Swal.fire({ icon: 'error', title: 'Failed to Load Tests', text: error.message, confirmButtonColor: '#ef4444' });
     }
   }
 
@@ -86,7 +87,7 @@ const LocalAdminTestsPackages = ({ assignedLab }) => {
       }
     } catch (error) {
       console.error('Error fetching available packages:', error)
-      alert('Error fetching available packages: ' + error.message)
+      Swal.fire({ icon: 'error', title: 'Failed to Load Packages', text: error.message, confirmButtonColor: '#ef4444' });
     }
   }
 
@@ -97,11 +98,12 @@ const LocalAdminTestsPackages = ({ assignedLab }) => {
       if (response.success) {
         setShowSelectTestsModal(false)
         fetchTests()
-        alert('Test assignments updated successfully!')
+        Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true })
+          .fire({ icon: 'success', title: 'Test assignments updated!' });
       }
     } catch (error) {
       console.error('Error updating test assignments:', error)
-      alert('Error updating test assignments: ' + error.message)
+      Swal.fire({ icon: 'error', title: 'Update Failed', text: error.message, confirmButtonColor: '#ef4444' });
     }
   }
 
@@ -112,18 +114,19 @@ const LocalAdminTestsPackages = ({ assignedLab }) => {
       if (response.success) {
         setShowSelectPackagesModal(false)
         fetchPackages()
-        alert('Package assignments updated successfully!')
+        Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true })
+          .fire({ icon: 'success', title: 'Package assignments updated!' });
       }
     } catch (error) {
       console.error('Error updating package assignments:', error)
-      alert('Error updating package assignments: ' + error.message)
+      Swal.fire({ icon: 'error', title: 'Update Failed', text: error.message, confirmButtonColor: '#ef4444' });
     }
   }
 
   // Handle test selection toggle
   const toggleTestSelection = (testId) => {
-    setSelectedTestIds(prev => 
-      prev.includes(testId) 
+    setSelectedTestIds(prev =>
+      prev.includes(testId)
         ? prev.filter(id => id !== testId)
         : [...prev, testId]
     )
@@ -131,8 +134,8 @@ const LocalAdminTestsPackages = ({ assignedLab }) => {
 
   // Handle package selection toggle
   const togglePackageSelection = (packageId) => {
-    setSelectedPackageIds(prev => 
-      prev.includes(packageId) 
+    setSelectedPackageIds(prev =>
+      prev.includes(packageId)
         ? prev.filter(id => id !== packageId)
         : [...prev, packageId]
     )
@@ -172,22 +175,20 @@ const LocalAdminTestsPackages = ({ assignedLab }) => {
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab('tests')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'tests'
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'tests'
                 ? 'border-primary-500 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+              }`}
           >
             <TestTube className="h-5 w-5 inline mr-2" />
             Tests ({tests.length})
           </button>
           <button
             onClick={() => setActiveTab('packages')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'packages'
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'packages'
                 ? 'border-primary-500 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+              }`}
           >
             <Package className="h-5 w-5 inline mr-2" />
             Packages ({packages.length})
@@ -373,11 +374,10 @@ const LocalAdminTestsPackages = ({ assignedLab }) => {
               {availableTests.map((test) => (
                 <div
                   key={test._id}
-                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                    selectedTestIds.includes(test._id)
+                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedTestIds.includes(test._id)
                       ? 'border-primary-500 bg-primary-50'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                   onClick={() => toggleTestSelection(test._id)}
                 >
                   <div className="flex items-center justify-between">
@@ -438,11 +438,10 @@ const LocalAdminTestsPackages = ({ assignedLab }) => {
               {availablePackages.map((pkg) => (
                 <div
                   key={pkg._id}
-                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                    selectedPackageIds.includes(pkg._id)
+                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedPackageIds.includes(pkg._id)
                       ? 'border-primary-500 bg-primary-50'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                   onClick={() => togglePackageSelection(pkg._id)}
                 >
                   <div className="flex items-center justify-between">

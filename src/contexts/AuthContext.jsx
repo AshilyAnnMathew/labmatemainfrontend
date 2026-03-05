@@ -15,22 +15,40 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check if user is logged in from localStorage
-    const token = localStorage.getItem('token')
-    const userData = localStorage.getItem('user')
-    
-    if (token && userData) {
-      try {
-        const parsedUser = JSON.parse(userData)
-        setUser(parsedUser)
-      } catch (error) {
-        console.error('Error parsing user data:', error)
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
+    const init = async () => {
+      const token = localStorage.getItem('token')
+      const userData = localStorage.getItem('user')
+
+      if (token && userData) {
+        try {
+          // Set cached user immediately so the UI doesn't flash
+          const cached = JSON.parse(userData)
+          setUser(cached)
+
+          // Then re-fetch fresh data from backend (picks up profileImage etc.)
+          const res = await fetch(
+            `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/me`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+          if (res.ok) {
+            const data = await res.json()
+            if (data.success && data.data?.user) {
+              const fresh = data.data.user
+              // Merge id field for consistency
+              fresh.id = fresh.id || fresh._id
+              setUser(fresh)
+              localStorage.setItem('user', JSON.stringify(fresh))
+            }
+          }
+        } catch (error) {
+          console.error('Error loading user data:', error)
+          // Keep cached data — don't log out
+        }
       }
+
+      setLoading(false)
     }
-    
-    setLoading(false)
+    init()
   }, [])
 
   const login = useCallback((userData, token) => {

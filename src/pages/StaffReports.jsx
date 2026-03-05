@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import api from '../services/api';
 import DashboardTable from '../components/common/DashboardTable';
 import StatusBadge from '../components/common/StatusBadge';
@@ -204,11 +205,11 @@ const StaffReports = () => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
       } else {
-        alert('No PDF report file available');
+        Swal.fire({ icon: 'warning', title: 'No PDF Available', text: 'No PDF report file is available for this booking.', confirmButtonColor: '#3b82f6' });
       }
     } catch (error) {
       console.error('Error downloading report:', error);
-      alert('Failed to download report.');
+      Swal.fire({ icon: 'error', title: 'Download Failed', text: 'Failed to download the report. Please try again.', confirmButtonColor: '#ef4444' });
     }
   };
 
@@ -220,11 +221,11 @@ const StaffReports = () => {
         window.open(url, '_blank');
         setTimeout(() => window.URL.revokeObjectURL(url), 1000);
       } else {
-        alert('No PDF report file available to print');
+        Swal.fire({ icon: 'warning', title: 'No PDF Available', text: 'No PDF report file is available to print.', confirmButtonColor: '#3b82f6' });
       }
     } catch (error) {
       console.error('Error printing report:', error);
-      alert('Failed to print report.');
+      Swal.fire({ icon: 'error', title: 'Print Failed', text: 'Failed to print the report. Please try again.', confirmButtonColor: '#ef4444' });
     }
   };
 
@@ -232,21 +233,89 @@ const StaffReports = () => {
     setExpandedTests(prev => ({ ...prev, [testId]: !prev[testId] }));
   };
 
+  const sendWhatsAppNotification = (report) => {
+    const phone = report.userId?.phone
+    if (!phone) {
+      Swal.fire({ icon: 'warning', title: 'No Phone Number', text: `Could not send WhatsApp notification — patient ${report.userId?.firstName || ''} has no phone number on record.`, confirmButtonColor: '#f59e0b' })
+      return
+    }
+    // Normalize to international format (India: 91 prefix)
+    let intlPhone = phone.replace(/\D/g, '') // strip non-digits
+    if (intlPhone.startsWith('0')) intlPhone = intlPhone.slice(1) // remove leading 0
+    if (intlPhone.length === 10) intlPhone = '91' + intlPhone  // prepend country code
+
+    const patientName = `${report.userId?.firstName || ''} ${report.userId?.lastName || ''}`.trim()
+    const labName = report.labId?.name || 'the laboratory'
+    const testNames = (report.selectedTests || []).map(t => t.testName || t.testId?.name).filter(Boolean).join(', ') ||
+      (report.selectedPackages || []).map(p => p.packageName || p.packageId?.name).filter(Boolean).join(', ') ||
+      'your recent tests'
+    const reportDate = new Date(report.appointmentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+
+    const message = [
+      `🔬 *LabMate360 — Results Ready!*`,
+      ``,
+      `Dear ${patientName},`,
+      `Your lab results for *${testNames}* (${reportDate}) from *${labName}* are now available.`,
+      ``,
+      `📥 *How to view your report:*`,
+      `1. Log in to LabMate360`,
+      `2. Go to *Download Reports*`,
+      `3. View or download your results`,
+      ``,
+      `For questions, contact us directly. Thank you for choosing LabMate360! 🏥`,
+    ].join('\n')
+
+    const waUrl = `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`
+    window.open(waUrl, '_blank')
+
+    Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 4000, timerProgressBar: true })
+      .fire({ icon: 'success', title: `📱 WhatsApp opened for ${patientName}`, text: 'Notification sent!' })
+  }
+
   const handlePublish = async (report) => {
-    if (!confirm(`Publish results for ${report.userId?.firstName} ${report.userId?.lastName} to the patient? They will be able to view and download their results.`)) return;
+    const result = await Swal.fire({
+      title: 'Publish Results?',
+      html: `<p class="text-sm text-gray-600">Publish results for <strong>${report.userId?.firstName} ${report.userId?.lastName}</strong>?<br/>The patient will be able to view and download their results.</p>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#10b981',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: '✓ Publish',
+    });
+    if (!result.isConfirmed) return;
     try {
       setPublishing(true);
       const res = await api.bookingAPI.publishResults(report._id);
       if (res.success) {
-        alert('Results published to patient successfully!');
-        // Refresh reports
+        // Refresh reports list
         const response = await api.bookingAPI.getLabReports(user.assignedLab, 'all', 1, 1000);
-        if (response?.success && response.data) {
-          setReports(response.data);
+        if (response?.success && response.data) setReports(response.data);
+
+        // Ask whether to notify patient via WhatsApp
+        const notifyResult = await Swal.fire({
+          title: '✅ Results Published!',
+          html: `
+            <p style="font-size:14px;margin-bottom:8px">
+              Results for <strong>${report.userId?.firstName} ${report.userId?.lastName}</strong> have been published.
+            </p>
+            <p style="font-size:13px;color:#6b7280">
+              Would you like to send a WhatsApp notification to the patient?
+              ${report.userId?.phone ? `<br/><span style="color:#10b981;font-weight:600">📱 ${report.userId.phone}</span>` : '<br/><span style="color:#f59e0b">⚠️ No phone number on record</span>'}
+            </p>`,
+          icon: 'success',
+          showCancelButton: true,
+          confirmButtonColor: '#25D366',
+          cancelButtonColor: '#6b7280',
+          confirmButtonText: '📱 Send WhatsApp',
+          cancelButtonText: 'Skip',
+        });
+
+        if (notifyResult.isConfirmed) {
+          sendWhatsAppNotification(report);
         }
       }
     } catch (error) {
-      alert('Error: ' + error.message);
+      Swal.fire({ icon: 'error', title: 'Publish Failed', text: error.message, confirmButtonColor: '#ef4444' });
     } finally {
       setPublishing(false);
     }

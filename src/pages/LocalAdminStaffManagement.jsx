@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Plus, Edit, Trash2, User, Mail, Phone, Building2, Search, Filter } from 'lucide-react'
+import Swal from 'sweetalert2'
 import api from '../services/api'
 
 const LocalAdminStaffManagement = ({ assignedLab }) => {
@@ -65,7 +66,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
     try {
       setLoading(true)
       const response = await api.localAdminAPI.getLabStaff(assignedLab._id)
-      
+
       if (response.success) {
         setStaffMembers(response.data)
       }
@@ -80,7 +81,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
     e.preventDefault()
     try {
       setError('')
-      
+
       // Validate password
       if (!newStaff.useRandomPassword) {
         if (!newStaff.password || !newStaff.confirmPassword) {
@@ -98,7 +99,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
       }
 
       const response = await api.localAdminAPI.createLabStaff(assignedLab._id, newStaff)
-      
+
       if (response.success) {
         setShowAddModal(false)
         setNewStaff({
@@ -114,12 +115,12 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
         })
         setError('')
         fetchStaffMembers()
-        // Show success message
-        alert('Staff member created successfully and welcome email sent!')
+        Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3500, timerProgressBar: true })
+          .fire({ icon: 'success', title: 'Staff member created!', text: 'Welcome email sent to the new staff member.' });
       }
     } catch (error) {
       console.error('Error creating staff:', error)
-      alert('Error creating staff: ' + error.message)
+      Swal.fire({ icon: 'error', title: 'Failed to Create Staff', text: error.message, confirmButtonColor: '#ef4444' });
     }
   }
 
@@ -127,31 +128,41 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
     e.preventDefault()
     try {
       const response = await api.localAdminAPI.updateLabStaff(assignedLab._id, selectedStaff._id, selectedStaff)
-      
+
       if (response.success) {
         setShowEditModal(false)
         setSelectedStaff(null)
         fetchStaffMembers()
-        alert('Staff member updated successfully!')
+        Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true })
+          .fire({ icon: 'success', title: 'Staff member updated!' });
       }
     } catch (error) {
       console.error('Error updating staff:', error)
-      alert('Error updating staff: ' + error.message)
+      Swal.fire({ icon: 'error', title: 'Update Failed', text: error.message, confirmButtonColor: '#ef4444' });
     }
   }
 
   const handleDeleteStaff = async (staffId) => {
-    if (window.confirm('Are you sure you want to delete this staff member?')) {
-      try {
-        const response = await api.localAdminAPI.deleteLabStaff(assignedLab._id, staffId)
-        if (response.success) {
-          fetchStaffMembers()
-          alert('Staff member deleted successfully!')
-        }
-      } catch (error) {
-        console.error('Error deleting staff:', error)
-        alert('Error deleting staff: ' + error.message)
+    const result = await Swal.fire({
+      title: 'Delete Staff Member?',
+      text: 'This action cannot be undone. The staff member will lose access to the system.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, Delete',
+    });
+    if (!result.isConfirmed) return;
+    try {
+      const response = await api.localAdminAPI.deleteLabStaff(assignedLab._id, staffId)
+      if (response.success) {
+        fetchStaffMembers()
+        Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true })
+          .fire({ icon: 'success', title: 'Staff member deleted.' });
       }
+    } catch (error) {
+      console.error('Error deleting staff:', error)
+      Swal.fire({ icon: 'error', title: 'Delete Failed', text: error.message, confirmButtonColor: '#ef4444' });
     }
   }
 
@@ -317,9 +328,8 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
 
                     {/* Status */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        staff.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${staff.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
                         {staff.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
@@ -363,7 +373,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
                   type="text"
                   placeholder="First Name"
                   value={newStaff.firstName}
-                  onChange={(e) => setNewStaff({...newStaff, firstName: e.target.value})}
+                  onChange={(e) => setNewStaff({ ...newStaff, firstName: e.target.value })}
                   className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   required
                 />
@@ -371,7 +381,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
                   type="text"
                   placeholder="Last Name"
                   value={newStaff.lastName}
-                  onChange={(e) => setNewStaff({...newStaff, lastName: e.target.value})}
+                  onChange={(e) => setNewStaff({ ...newStaff, lastName: e.target.value })}
                   className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   required
                 />
@@ -380,7 +390,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
                 type="email"
                 placeholder="Email"
                 value={newStaff.email}
-                onChange={(e) => setNewStaff({...newStaff, email: e.target.value})}
+                onChange={(e) => setNewStaff({ ...newStaff, email: e.target.value })}
                 className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary-500"
                 required
               />
@@ -388,13 +398,13 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
                 type="tel"
                 placeholder="Phone"
                 value={newStaff.phone}
-                onChange={(e) => setNewStaff({...newStaff, phone: e.target.value})}
+                onChange={(e) => setNewStaff({ ...newStaff, phone: e.target.value })}
                 className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary-500"
                 required
               />
               <select
                 value={newStaff.role}
-                onChange={(e) => setNewStaff({...newStaff, role: e.target.value})}
+                onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })}
                 className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="staff">Staff</option>
@@ -405,7 +415,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
                 type="text"
                 placeholder="Department"
                 value={newStaff.department}
-                onChange={(e) => setNewStaff({...newStaff, department: e.target.value})}
+                onChange={(e) => setNewStaff({ ...newStaff, department: e.target.value })}
                 className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
               {/* Error Message */}
@@ -433,7 +443,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
                       Generate Random Password
                     </label>
                   </div>
-                  
+
                   {/* Custom Password Option */}
                   <div className="flex items-center space-x-3">
                     <input
@@ -449,7 +459,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
                     </label>
                   </div>
                 </div>
-                
+
                 {/* Password Display/Input */}
                 {newStaff.useRandomPassword ? (
                   <div className="mt-3">
@@ -478,7 +488,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
                       <input
                         type="password"
                         value={newStaff.password}
-                        onChange={(e) => setNewStaff({...newStaff, password: e.target.value})}
+                        onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                         placeholder="Enter password"
                       />
@@ -488,7 +498,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
                       <input
                         type="password"
                         value={newStaff.confirmPassword}
-                        onChange={(e) => setNewStaff({...newStaff, confirmPassword: e.target.value})}
+                        onChange={(e) => setNewStaff({ ...newStaff, confirmPassword: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                         placeholder="Confirm password"
                       />
@@ -527,7 +537,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
                   type="text"
                   placeholder="First Name"
                   value={selectedStaff.firstName}
-                  onChange={(e) => setSelectedStaff({...selectedStaff, firstName: e.target.value})}
+                  onChange={(e) => setSelectedStaff({ ...selectedStaff, firstName: e.target.value })}
                   className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   required
                 />
@@ -535,7 +545,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
                   type="text"
                   placeholder="Last Name"
                   value={selectedStaff.lastName}
-                  onChange={(e) => setSelectedStaff({...selectedStaff, lastName: e.target.value})}
+                  onChange={(e) => setSelectedStaff({ ...selectedStaff, lastName: e.target.value })}
                   className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   required
                 />
@@ -544,7 +554,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
                 type="email"
                 placeholder="Email"
                 value={selectedStaff.email}
-                onChange={(e) => setSelectedStaff({...selectedStaff, email: e.target.value})}
+                onChange={(e) => setSelectedStaff({ ...selectedStaff, email: e.target.value })}
                 className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary-500"
                 required
               />
@@ -552,13 +562,13 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
                 type="tel"
                 placeholder="Phone"
                 value={selectedStaff.phone}
-                onChange={(e) => setSelectedStaff({...selectedStaff, phone: e.target.value})}
+                onChange={(e) => setSelectedStaff({ ...selectedStaff, phone: e.target.value })}
                 className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary-500"
                 required
               />
               <select
                 value={selectedStaff.role}
-                onChange={(e) => setSelectedStaff({...selectedStaff, role: e.target.value})}
+                onChange={(e) => setSelectedStaff({ ...selectedStaff, role: e.target.value })}
                 className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="staff">Staff</option>
@@ -569,7 +579,7 @@ const LocalAdminStaffManagement = ({ assignedLab }) => {
                 type="text"
                 placeholder="Department"
                 value={selectedStaff.department || ''}
-                onChange={(e) => setSelectedStaff({...selectedStaff, department: e.target.value})}
+                onChange={(e) => setSelectedStaff({ ...selectedStaff, department: e.target.value })}
                 className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
               <div className="flex justify-end space-x-3">

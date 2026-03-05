@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import Barcode from 'react-barcode'
+import Swal from 'sweetalert2'
 import {
   Calendar,
   Clock,
@@ -118,7 +119,7 @@ const AssignedBookings = () => {
       }
     } catch (error) {
       console.error('Error collecting sample:', error);
-      alert('Error collecting sample: ' + error.message);
+      Swal.fire({ icon: 'error', title: 'Sample Collection Failed', text: error.message, confirmButtonColor: '#ef4444' });
     }
   }
 
@@ -129,11 +130,12 @@ const AssignedBookings = () => {
       if (response.success) {
         fetchBookings()
         setShowBookingModal(false)
-        alert(`Booking status updated to ${newStatus}`)
+        Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true })
+          .fire({ icon: 'success', title: `Status updated to ${newStatus}` });
       }
     } catch (error) {
       console.error('Error updating booking status:', error)
-      alert('Error updating booking status: ' + error.message)
+      Swal.fire({ icon: 'error', title: 'Update Failed', text: error.message, confirmButtonColor: '#ef4444' });
     }
   }
 
@@ -145,11 +147,12 @@ const AssignedBookings = () => {
       if (response.success) {
         fetchBookings()
         setShowPaymentModal(false)
-        alert('Payment processed successfully')
+        Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true })
+          .fire({ icon: 'success', title: 'Payment processed successfully!' });
       }
     } catch (error) {
       console.error('Error processing payment:', error)
-      alert('Error processing payment: ' + error.message)
+      Swal.fire({ icon: 'error', title: 'Payment Failed', text: error.message, confirmButtonColor: '#ef4444' });
     }
   }
 

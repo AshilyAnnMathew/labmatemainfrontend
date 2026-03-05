@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import jsPDF from 'jspdf'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import Swal from 'sweetalert2'
 
 const BACKEND_URL = 'http://localhost:5000'
 
@@ -207,14 +208,19 @@ Patient: ${patientInfo}\n${analysisData}\n\nProvide clear, patient-friendly anal
               razorpaySignature: response.razorpay_signature
             })
             fetchBookings()
-            alert('Payment Successful! Report unlocked.')
-          } catch { alert('Payment verification failed.') }
+            Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3500, timerProgressBar: true })
+              .fire({ icon: 'success', title: 'Payment Successful!', text: 'Your report is now unlocked.' });
+          } catch {
+            Swal.fire({ icon: 'error', title: 'Payment Verification Failed', text: 'Please contact support if amount was deducted.', confirmButtonColor: '#ef4444' });
+          }
         },
         prefill: { name: `${user?.firstName} ${user?.lastName}`, email: user?.email, contact: user?.phone },
         theme: { color: '#2563eb' }
       })
       rzp.open()
-    } catch (err) { alert('Payment failed: ' + (err.message || 'Unknown error')) }
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Payment Failed', text: err.message || 'Unknown error. Please try again.', confirmButtonColor: '#ef4444' });
+    }
   }
 
   // ── Downloads ──
@@ -226,19 +232,80 @@ Patient: ${patientInfo}\n${analysisData}\n\nProvide clear, patient-friendly anal
       a.href = url; a.download = `LabReport_${booking._id}.pdf`
       document.body.appendChild(a); a.click(); a.remove()
       window.URL.revokeObjectURL(url)
-    } catch (err) { alert('Download failed: ' + err.message) }
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Download Failed', text: err.message, confirmButtonColor: '#ef4444' });
+    }
   }
 
-  const handleWhatsAppShare = (booking) => {
+  const handleWhatsAppShare = async (booking) => {
     const labName = booking.labId?.name || 'Laboratory'
     const date = formatDate(booking.updatedAt || booking.appointmentDate)
-    const text = `Hi, I'm sharing my lab report from ${labName} (${date}) via LabMate360. 🔬`
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`
-    window.open(url, '_blank')
+    const testNames = (booking.selectedTests || []).map(t => t.testName || t.testId?.name).filter(Boolean).join(', ') || 'Lab Tests'
+    const message = `Hi! 👋 I'd like to share my lab report from *${labName}* (${date}) via LabMate360 🔬\n\nTests: ${testNames}\n\n_Sent via LabMate360_`
+
+    // Step 1: Auto-download PDF to their device
+    let pdfDownloaded = false
+    try {
+      if (booking.reportFile) {
+        const blob = await api.bookingAPI.downloadReport(booking._id)
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `LabReport_${labName.replace(/\s+/g, '_')}_${date}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        window.URL.revokeObjectURL(url)
+        pdfDownloaded = true
+      } else if (booking.paymentStatus === 'completed') {
+        downloadResultsPdf(booking)
+        pdfDownloaded = true
+      }
+    } catch (err) {
+      console.error('WhatsApp share: PDF download failed', err)
+    }
+
+    // Step 2: Show guide then open WhatsApp
+    const swalConfig = pdfDownloaded ? {
+      title: '📎 Attach Report to WhatsApp',
+      html: `
+        <div style="text-align:left;font-size:14px;line-height:1.8">
+          <p style="margin-bottom:12px">✅ Your PDF has been <strong>downloaded</strong>. Now follow these steps:</p>
+          <ol style="padding-left:20px;margin:0">
+            <li>Click <strong>"Open WhatsApp"</strong> below</li>
+            <li>Choose your contact or group</li>
+            <li>Tap the <strong>📎 attachment / + icon</strong></li>
+            <li>Select <strong>"Document"</strong> and pick the downloaded PDF</li>
+            <li>Send 🚀</li>
+          </ol>
+          <div style="margin-top:12px;padding:10px;background:#f0fdf4;border-radius:8px;border-left:3px solid #25D366;font-size:12px;color:#166534">
+            💡 A pre-filled message will open automatically in WhatsApp Web.
+          </div>
+        </div>`,
+    } : {
+      title: 'Share via WhatsApp',
+      html: `<p style="font-size:14px">No PDF report is available to download. The WhatsApp message will be pre-filled. To include the report, first use <strong>Download PDF</strong>, then attach it manually in WhatsApp.</p>`,
+    }
+
+    const result = await Swal.fire({
+      ...swalConfig,
+      icon: 'info',
+      showCancelButton: true,
+      confirmButtonText: '✉️ Open WhatsApp',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#25D366',
+      cancelButtonColor: '#6b7280',
+    })
+    if (result.isConfirmed) {
+      window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank')
+    }
   }
 
   const downloadResultsPdf = useCallback((booking) => {
-    if (booking.paymentStatus !== 'completed') { alert('Please complete payment first.'); return }
+    if (booking.paymentStatus !== 'completed') {
+      Swal.fire({ icon: 'warning', title: 'Payment Required', text: 'Please complete payment to download this report.', confirmButtonColor: '#f59e0b' });
+      return
+    }
     try {
       const doc = new jsPDF()
       const pw = doc.internal.pageSize.getWidth()

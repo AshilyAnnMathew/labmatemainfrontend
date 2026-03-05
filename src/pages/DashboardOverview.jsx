@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
     Activity,
@@ -17,12 +17,18 @@ import {
     Download,
     Shield,
     Beaker,
-    Loader2
+    Loader2,
+    Bell,
+    TestTube,
+    AlertTriangle,
+    CheckCircle,
+    MapPin
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { bookingAPI, respiratoryAPI, mentalWellnessAPI, vitalsAPI } from '../services/api'
 import PPGMonitor from '../components/PPG/PPGMonitor'
 import jsPDF from 'jspdf'
+import Swal from 'sweetalert2'
 
 const DashboardOverview = () => {
     const { user } = useAuth()
@@ -38,10 +44,12 @@ const DashboardOverview = () => {
         }
     })
     const [recentBookings, setRecentBookings] = useState([])
+    const [allBookings, setAllBookings] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [showPPGModal, setShowPPGModal] = useState(false)
     const [generatingReport, setGeneratingReport] = useState(false)
+    const [dismissedAlerts, setDismissedAlerts] = useState(new Set())
 
     useEffect(() => {
         fetchDashboardData()
@@ -337,7 +345,7 @@ const DashboardOverview = () => {
 
         } catch (err) {
             console.error('Report Generation Error:', err)
-            alert('Failed to generate report. Please try again.')
+            Swal.fire({ icon: 'error', title: 'Report Generation Failed', text: 'Failed to generate the report. Please try again.', confirmButtonColor: '#ef4444' });
         } finally {
             setGeneratingReport(false)
         }
@@ -408,6 +416,7 @@ const DashboardOverview = () => {
 
                 // Get recent 3 bookings
                 setRecentBookings(bookings.slice(0, 3))
+                setAllBookings(bookings)
             }
         } catch (err) {
             console.error('Error fetching dashboard data:', err)
@@ -424,13 +433,7 @@ const DashboardOverview = () => {
         // setShowPPGModal(false); 
     }
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-96">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-            </div>
-        )
-    }
+    // ─── All hooks must be declared before any early returns ───
 
     const getGreeting = () => {
         const hour = new Date().getHours()
@@ -439,15 +442,135 @@ const DashboardOverview = () => {
         return 'Good Evening'
     }
 
+    // ─── Date helpers ───
+    const normalize = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
+    const todayMs = normalize(new Date()).getTime()
+    const daysFromNow = (d) => Math.round((normalize(d).getTime() - todayMs) / 86400000)
+
+    // ─── Computed upcoming/reminder data ───
+    const upcomingBookings = useMemo(() => {
+        return allBookings
+            .filter(b => {
+                const days = daysFromNow(b.appointmentDate)
+                return days >= 0 && ['pending', 'confirmed', 'sample_collected'].includes(b.status)
+            })
+            .sort((a, b) => new Date(a.appointmentDate) - new Date(b.appointmentDate))
+    }, [allBookings])
+
+    const reminderAlerts = useMemo(() => {
+        const alerts = []
+        allBookings.forEach(b => {
+            const days = daysFromNow(b.appointmentDate)
+            if (['pending', 'confirmed'].includes(b.status)) {
+                if (days === 0) {
+                    alerts.push({ id: b._id + '_today', type: 'today', booking: b, message: `You have an appointment today at ${b.appointmentTime} — ${b.labId?.name || 'Lab'}` })
+                } else if (days === 1) {
+                    alerts.push({ id: b._id + '_tomorrow', type: 'tomorrow', booking: b, message: `Reminder: Appointment tomorrow at ${b.appointmentTime} — ${b.labId?.name || 'Lab'}` })
+                } else if (days === 2) {
+                    alerts.push({ id: b._id + '_2days', type: 'upcoming', booking: b, message: `Upcoming appointment in 2 days at ${b.labId?.name || 'Lab'}` })
+                }
+            }
+            if (days < 0 && b.status === 'confirmed') {
+                alerts.push({ id: b._id + '_missed', type: 'missed', booking: b, message: `You missed your appointment on ${new Date(b.appointmentDate).toLocaleDateString()} at ${b.labId?.name || 'Lab'}. Please reschedule.` })
+            }
+            if (['result_published', 'completed'].includes(b.status)) {
+                const publishedDaysAgo = Math.abs(daysFromNow(b.updatedAt || b.appointmentDate))
+                if (publishedDaysAgo <= 3) {
+                    alerts.push({ id: b._id + '_results', type: 'results', booking: b, message: `🧪 Your lab results from ${b.labId?.name || 'Lab'} are ready to view!` })
+                }
+            }
+        })
+        return alerts.filter(a => !dismissedAlerts.has(a.id)).slice(0, 4)
+    }, [allBookings, dismissedAlerts])
+
+    const dismissAlert = (id) => setDismissedAlerts(prev => new Set([...prev, id]))
+
+    const alertStyle = (type) => {
+        switch (type) {
+            case 'today': return 'bg-gradient-to-r from-blue-600 to-blue-700 text-white border-blue-700'
+            case 'tomorrow': return 'bg-gradient-to-r from-amber-500 to-amber-600 text-white border-amber-600'
+            case 'upcoming': return 'bg-gradient-to-r from-violet-500 to-purple-600 text-white border-purple-600'
+            case 'missed': return 'bg-gradient-to-r from-red-500 to-rose-600 text-white border-red-600'
+            case 'results': return 'bg-gradient-to-r from-emerald-500 to-green-600 text-white border-green-600'
+            default: return 'bg-gray-100 text-gray-800 border-gray-200'
+        }
+    }
+
+    const alertIcon = (type) => {
+        switch (type) {
+            case 'today': return <Bell className="h-4 w-4 flex-shrink-0 animate-bounce" />
+            case 'tomorrow': return <Clock className="h-4 w-4 flex-shrink-0" />
+            case 'upcoming': return <Calendar className="h-4 w-4 flex-shrink-0" />
+            case 'missed': return <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+            case 'results': return <CheckCircle className="h-4 w-4 flex-shrink-0" />
+        }
+    }
+
+    // ─── Early return for loading (after all hooks) ───
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-96">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+            </div>
+        )
+    }
+
     return (
         <div className="w-full h-full relative">
             {/* Welcome Section */}
-            <div className="mb-8">
+            <div className="mb-6">
                 <h1 className="text-2xl font-bold text-gray-900">
                     {getGreeting()}, {user?.firstName || 'User'}!
                 </h1>
                 <p className="text-gray-500 mt-1">Here's what's happening with your health reports today.</p>
             </div>
+
+            {/* ─── Reminder / Notification Banners ─── */}
+            {reminderAlerts.length > 0 && (
+                <div className="space-y-2 mb-6">
+                    {reminderAlerts.map(alert => (
+                        <div
+                            key={alert.id}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl border shadow-sm ${alertStyle(alert.type)}`}
+                        >
+                            {alertIcon(alert.type)}
+                            <span className="text-sm font-medium flex-1">{alert.message}</span>
+                            <div className="flex items-center gap-2 ml-2">
+                                {(alert.type === 'results') && (
+                                    <Link
+                                        to="/user/dashboard/download-reports"
+                                        className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg font-semibold transition-colors"
+                                    >
+                                        View Results
+                                    </Link>
+                                )}
+                                {(alert.type === 'missed') && (
+                                    <Link
+                                        to="/user/dashboard/book-tests"
+                                        className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg font-semibold transition-colors"
+                                    >
+                                        Book Again
+                                    </Link>
+                                )}
+                                {(alert.type === 'today') && (
+                                    <Link
+                                        to="/user/dashboard/bookings"
+                                        className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg font-semibold transition-colors"
+                                    >
+                                        View Booking
+                                    </Link>
+                                )}
+                                <button
+                                    onClick={() => dismissAlert(alert.id)}
+                                    className="p-1 hover:bg-white/20 rounded-full transition-colors"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -612,59 +735,119 @@ const DashboardOverview = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Recent Activity */}
-                <div className="lg:col-span-2">
+                {/* Recent Activity + Upcoming */}
+                <div className="lg:col-span-2 space-y-5">
+
+                    {/* ─── Upcoming Appointments ─── */}
+                    {upcomingBookings.length > 0 && (
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
+                                <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                                    <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                                        <Calendar className="h-4 w-4 text-blue-600" />
+                                    </div>
+                                    Upcoming Appointments
+                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                                        {upcomingBookings.length}
+                                    </span>
+                                </h2>
+                                <Link to="/user/dashboard/bookings" className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1">
+                                    View All <ChevronRight className="h-3.5 w-3.5" />
+                                </Link>
+                            </div>
+                            <div className="divide-y divide-gray-50">
+                                {upcomingBookings.slice(0, 4).map(b => {
+                                    const days = daysFromNow(b.appointmentDate)
+                                    const testCount = (b.selectedTests || []).length + (b.selectedPackages || []).length
+                                    return (
+                                        <div key={b._id} className={`px-5 py-3.5 flex items-center gap-4 hover:bg-gray-50/80 transition-colors ${days === 0 ? 'bg-blue-50/40 border-l-4 border-l-blue-500' : days === 1 ? 'border-l-4 border-l-amber-400' : ''}`}>
+                                            {/* Date Column */}
+                                            <div className={`w-14 flex-shrink-0 text-center rounded-xl py-2 ${days === 0 ? 'bg-blue-600 text-white' : days === 1 ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'}`}>
+                                                <div className="text-xs font-semibold uppercase">{new Date(b.appointmentDate).toLocaleDateString('en-US', { month: 'short' })}</div>
+                                                <div className="text-xl font-bold leading-tight">{new Date(b.appointmentDate).toLocaleDateString('en-US', { day: '2-digit' })}</div>
+                                            </div>
+                                            {/* Details */}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-semibold text-gray-900 truncate">{b.labId?.name || 'Laboratory'}</p>
+                                                    {days === 0 && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold animate-pulse">TODAY</span>}
+                                                    {days === 1 && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">TOMORROW</span>}
+                                                    {days > 1 && <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full font-medium">In {days} days</span>}
+                                                </div>
+                                                <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
+                                                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{b.appointmentTime}</span>
+                                                    <span className="flex items-center gap-1"><TestTube className="h-3 w-3" />{testCount} test{testCount !== 1 ? 's' : ''}</span>
+                                                    {b.labId?.address && <span className="flex items-center gap-1 truncate"><MapPin className="h-3 w-3 flex-shrink-0" />{b.labId.address}</span>}
+                                                </div>
+                                            </div>
+                                            {/* Status */}
+                                            <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${b.status === 'confirmed' ? 'bg-green-100 text-green-700'
+                                                : b.status === 'pending' ? 'bg-yellow-100 text-yellow-700'
+                                                    : 'bg-blue-100 text-blue-700'
+                                                }`}>
+                                                {b.status}
+                                            </span>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ─── Recent Activity ─── */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                        <div className="px-6 py-5 border-b border-gray-50 flex items-center justify-between">
-                            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                                <Activity className="h-5 w-5 mr-2 text-primary-600" />
+                        <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+                            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                                <div className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                                    <Activity className="h-4 w-4 text-gray-600" />
+                                </div>
                                 Recent Activity
                             </h2>
-                            <Link to="/user/dashboard/bookings" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-                                View All
+                            <Link to="/user/dashboard/bookings" className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1">
+                                View All <ChevronRight className="h-3.5 w-3.5" />
                             </Link>
                         </div>
 
                         <div className="divide-y divide-gray-50">
                             {recentBookings.length > 0 ? (
                                 recentBookings.map((booking) => (
-                                    <div key={booking._id} className="p-6 hover:bg-gray-50 transition-colors">
+                                    <div key={booking._id} className="p-5 hover:bg-gray-50 transition-colors">
                                         <div className="flex items-center justify-between">
-                                            <div className="flex items-start space-x-4">
-                                                <div className={`p-2 rounded-lg ${booking.status === 'completed' ? 'bg-green-50 text-green-600' :
+                                            <div className="flex items-start space-x-3">
+                                                <div className={`p-2 rounded-lg ${booking.status === 'completed' || booking.status === 'result_published' ? 'bg-green-50 text-green-600' :
                                                     booking.status === 'cancelled' ? 'bg-red-50 text-red-600' :
                                                         'bg-blue-50 text-blue-600'
                                                     }`}>
-                                                    <Calendar className="h-5 w-5" />
+                                                    <Calendar className="h-4 w-4" />
                                                 </div>
                                                 <div>
-                                                    <p className="font-medium text-gray-900">
+                                                    <p className="font-medium text-gray-900 text-sm">
                                                         {booking.testIds?.length > 0
                                                             ? `${booking.testIds.length} Tests`
                                                             : booking.packageId
                                                                 ? 'Health Package'
                                                                 : 'Laboratory Test'}
                                                     </p>
-                                                    <p className="text-sm text-gray-500 mt-1">
-                                                        {booking.labId?.name || 'Unknown Lab'}
-                                                    </p>
-                                                    <p className="text-xs text-gray-400 mt-1">
-                                                        {new Date(booking.createdAt).toLocaleDateString()}
-                                                    </p>
+                                                    <p className="text-xs text-gray-500 mt-0.5">{booking.labId?.name || 'Unknown Lab'}</p>
+                                                    <p className="text-xs text-gray-400 mt-0.5">{new Date(booking.appointmentDate || booking.createdAt).toLocaleDateString()}</p>
                                                 </div>
                                             </div>
-                                            <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${booking.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${booking.status === 'completed' || booking.status === 'result_published' ? 'bg-green-100 text-green-800' :
                                                 booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                                                     'bg-blue-100 text-blue-800'
                                                 }`}>
-                                                {booking.status}
+                                                {booking.status === 'result_published' ? 'Results Ready' : booking.status}
                                             </span>
                                         </div>
                                     </div>
                                 ))
                             ) : (
                                 <div className="p-8 text-center text-gray-500">
-                                    <p>No recent activity found.</p>
+                                    <div className="h-12 w-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                                        <Calendar className="h-6 w-6 text-gray-300" />
+                                    </div>
+                                    <p className="text-sm font-medium">No bookings yet</p>
+                                    <p className="text-xs text-gray-400 mt-1">Book your first lab test to get started</p>
                                 </div>
                             )}
                         </div>

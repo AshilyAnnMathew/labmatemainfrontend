@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { mentalWellnessAPI } from '../services/api';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import Swal from 'sweetalert2';
 
 const MentalWellness = () => {
     const [activeTab, setActiveTab] = useState('assessment');
@@ -137,7 +138,7 @@ const AssessmentWizard = ({ onSuccess }) => {
                 await mentalWellnessAPI.submitAssessment(answers);
                 onSuccess();
             } catch (err) {
-                alert('Failed to submit assessment');
+                Swal.fire({ icon: 'error', title: 'Submission Failed', text: 'Failed to submit assessment. Please try again.', confirmButtonColor: '#ef4444' });
             } finally {
                 setSubmitting(false);
             }

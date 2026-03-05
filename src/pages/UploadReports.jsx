@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import Swal from 'sweetalert2';
 import DashboardTable from '../components/common/DashboardTable';
 import StatusBadge from '../components/common/StatusBadge';
 
@@ -309,7 +310,7 @@ const UploadReports = () => {
       }
     } catch (err) {
       console.error('Error submitting result:', err);
-      alert('Error: ' + err.message);
+      Swal.fire({ icon: 'error', title: 'Submit Failed', text: err.message, confirmButtonColor: '#ef4444' });
     } finally {
       setSavingTestId(null);
     }
@@ -319,7 +320,7 @@ const UploadReports = () => {
   const handleUploadImagingResult = async (testId) => {
     const file = imagingFiles[testId];
     if (!file || !selectedBooking) {
-      alert('Please select an image or PDF file to upload.');
+      Swal.fire({ icon: 'warning', title: 'No File Selected', text: 'Please select an image or PDF file to upload.', confirmButtonColor: '#f59e0b' });
       return;
     }
     try {
@@ -334,7 +335,7 @@ const UploadReports = () => {
       }
     } catch (err) {
       console.error('Error uploading imaging result:', err);
-      alert('Error: ' + err.message);
+      Swal.fire({ icon: 'error', title: 'Upload Failed', text: err.message, confirmButtonColor: '#ef4444' });
     } finally {
       setUploadingImaging(null);
     }
@@ -360,7 +361,7 @@ const UploadReports = () => {
       }
     } catch (error) {
       console.error('Error verifying:', error);
-      alert('Error: ' + error.message);
+      Swal.fire({ icon: 'error', title: 'Verification Failed', text: error.message, confirmButtonColor: '#ef4444' });
     } finally {
       setVerifying(false);
     }
@@ -371,11 +372,11 @@ const UploadReports = () => {
     if (file) {
       const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
       if (!allowedTypes.includes(file.type)) {
-        alert('Please select a PDF, JPEG, or PNG file');
+        Swal.fire({ icon: 'warning', title: 'Invalid File Type', text: 'Please select a PDF, JPEG, or PNG file.', confirmButtonColor: '#f59e0b' });
         return;
       }
       if (file.size > 10 * 1024 * 1024) {
-        alert('File size must be less than 10MB');
+        Swal.fire({ icon: 'warning', title: 'File Too Large', text: 'File size must be less than 10MB.', confirmButtonColor: '#f59e0b' });
         return;
       }
       setSelectedFile(file);
@@ -385,19 +386,20 @@ const UploadReports = () => {
   const handleUploadReport = async () => {
     if (!selectedFile || !selectedBooking) return;
     if (!selectedBooking.allVerified) {
-      alert('Cannot upload final report until all tests are verified.');
+      Swal.fire({ icon: 'warning', title: 'Tests Not Verified', text: 'Cannot upload final report until all tests are verified.', confirmButtonColor: '#f59e0b' });
       return;
     }
     try {
       setUploading(true);
       const response = await api.bookingAPI.uploadReport(selectedBooking._id, selectedFile);
       if (response.success) {
-        alert('Report uploaded!');
+        Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true })
+          .fire({ icon: 'success', title: 'Report uploaded successfully!' });
         resetModal();
         refreshBookings();
       }
     } catch (error) {
-      alert('Error: ' + error.message);
+      Swal.fire({ icon: 'error', title: 'Upload Failed', text: error.message, confirmButtonColor: '#ef4444' });
     } finally {
       setUploading(false);
     }
@@ -744,7 +746,10 @@ const UploadReports = () => {
                                     onChange={(e) => {
                                       const file = e.target.files[0];
                                       if (file) {
-                                        if (file.size > 15 * 1024 * 1024) { alert('File must be under 15MB'); return; }
+                                        if (file.size > 15 * 1024 * 1024) {
+                                          Swal.fire({ icon: 'warning', title: 'File Too Large', text: 'File must be under 15MB.', confirmButtonColor: '#f59e0b' });
+                                          return;
+                                        }
                                         setImagingFiles(prev => ({ ...prev, [test.id]: file }));
                                       }
                                     }}

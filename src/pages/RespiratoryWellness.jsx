@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { respiratoryAPI } from '../services/api';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import Swal from 'sweetalert2';
 
 const RespiratoryWellness = () => {
     const [activeTab, setActiveTab] = useState('assessment');
@@ -171,7 +172,7 @@ const AssessmentView = ({ onSuccess }) => {
             onSuccess();
         } catch (error) {
             console.error(error);
-            alert('Failed to save assessment');
+            Swal.fire({ icon: 'error', title: 'Save Failed', text: 'Failed to save assessment. Please try again.', confirmButtonColor: '#ef4444' });
             setStep('questions');
         }
     };
@@ -435,8 +436,8 @@ const DashboardStats = ({ history }) => {
                                     <td className="px-4 py-3 text-gray-600">{item.maxBreathHold}s</td>
                                     <td className="px-4 py-3">
                                         <span className={`px-2 py-1 rounded text-xs font-medium ${item.riskLevel === 'Normal' ? 'bg-green-100 text-green-700' :
-                                                item.riskLevel === 'High Risk' ? 'bg-red-100 text-red-700' :
-                                                    'bg-yellow-100 text-yellow-700'
+                                            item.riskLevel === 'High Risk' ? 'bg-red-100 text-red-700' :
+                                                'bg-yellow-100 text-yellow-700'
                                             }`}>
                                             {item.riskLevel}
                                         </span>

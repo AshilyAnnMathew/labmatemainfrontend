@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Building2, MapPin, Phone, Mail, Clock, Users, Save, Edit } from 'lucide-react'
+import Swal from 'sweetalert2'
 import api from '../services/api'
 
 const LocalAdminSettings = ({ assignedLab }) => {
@@ -114,12 +115,12 @@ const LocalAdminSettings = ({ assignedLab }) => {
       if (response.success) {
         setEditing(false)
         setLabData(response.data)
-        // Show success message
-        alert('Lab settings updated successfully!')
+        Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true })
+          .fire({ icon: 'success', title: 'Lab settings updated successfully!' });
       }
     } catch (error) {
       console.error('Error updating lab:', error)
-      alert('Error updating lab settings. Please try again.')
+      Swal.fire({ icon: 'error', title: 'Update Failed', text: 'Error updating lab settings. Please try again.', confirmButtonColor: '#ef4444' });
     } finally {
       setSaving(false)
     }
@@ -377,7 +378,7 @@ const LocalAdminSettings = ({ assignedLab }) => {
                   {day}
                 </label>
               </div>
-              
+
               <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"
