@@ -209,7 +209,7 @@ const BookTests = () => {
           text: `Scheduled for ${selectedDate} at ${selectedTime}.`,
           confirmButtonColor: '#2563eb'
         })
-        navigate('/dashboard/my-bookings')
+        navigate('/user/dashboard/bookings')
       }
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Critical Error', text: err.message, confirmButtonColor: '#2563eb' })
@@ -286,7 +286,7 @@ const BookTests = () => {
                 razorpaySignature: response.razorpay_signature
               })
               await Swal.fire({ icon: 'success', title: 'Payment Secured', text: 'Diagnostic sequence confirmed.', confirmButtonColor: '#2563eb' })
-              navigate('/dashboard/my-bookings')
+              navigate('/user/dashboard/bookings')
             } catch (err) {
               Swal.fire({ icon: 'error', title: 'Transaction Failed', text: err.message, confirmButtonColor: '#2563eb' })
             }
