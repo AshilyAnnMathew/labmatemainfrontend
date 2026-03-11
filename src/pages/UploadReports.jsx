@@ -13,13 +13,24 @@ import {
   Package,
   BarChart3,
   Printer,
-  ImagePlus
+  ImagePlus,
+  Zap,
+  Activity,
+  Microscope,
+  Search,
+  ArrowUpRight,
+  ShieldCheck,
+  Layers,
+  Clock,
+  User
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
-import Swal from 'sweetalert2';
+import moment from 'moment';
 import DashboardTable from '../components/common/DashboardTable';
 import StatusBadge from '../components/common/StatusBadge';
+import Swal from 'sweetalert2';
 
 const UploadReports = () => {
   const { user } = useAuth();
@@ -59,11 +70,8 @@ const UploadReports = () => {
     return (booking.testResults || []).find(r => (r.testId?._id || r.testId)?.toString() === testId?.toString()) || null;
   };
 
-  // Collect all individual tests for a booking (direct + from packages)
   const getAllTestsForBooking = (booking) => {
     const tests = [];
-
-    // Direct tests
     (booking.selectedTests || []).forEach(t => {
       tests.push({
         id: t.testId?._id || t.testId,
@@ -74,8 +82,6 @@ const UploadReports = () => {
         sourceName: 'Individual Tests'
       });
     });
-
-    // Package tests
     (booking.selectedPackages || []).forEach(pkg => {
       const pkgTests = pkg.packageId?.selectedTests || [];
       pkgTests.forEach(test => {
@@ -89,19 +95,13 @@ const UploadReports = () => {
         });
       });
     });
-
     return tests;
   };
 
-  // Group bookings into package-level rows for the table
   const transformToPackageRows = (bookingsData) => {
     const rows = [];
-
     bookingsData.forEach(booking => {
       const allTests = getAllTestsForBooking(booking);
-      const existingResults = booking.testResults || [];
-
-      // Compute progress
       const totalTests = allTests.length;
       const completedCount = allTests.filter(t => {
         const status = getTestStatus(booking, t.id);
@@ -109,7 +109,6 @@ const UploadReports = () => {
       }).length;
       const verifiedCount = allTests.filter(t => getTestStatus(booking, t.id) === 'verified').length;
 
-      // Determine package status
       let packageStatus = 'Processing';
       if (verifiedCount === totalTests && totalTests > 0) {
         packageStatus = 'Verified';
@@ -119,7 +118,6 @@ const UploadReports = () => {
         packageStatus = 'Partially Completed';
       }
 
-      // Group names for display
       const packageNames = (booking.selectedPackages || []).map(p => p.packageId?.name || p.packageName).filter(Boolean);
       const directTestCount = (booking.selectedTests || []).length;
       let displayName = '';
@@ -131,7 +129,6 @@ const UploadReports = () => {
         displayName = `${directTestCount} Individual Test${directTestCount > 1 ? 's' : ''}`;
       }
 
-      // Only include if there are still non-verified tests
       if (verifiedCount < totalTests) {
         rows.push({
           ...booking,
@@ -150,7 +147,6 @@ const UploadReports = () => {
         });
       }
     });
-
     return rows;
   };
 
@@ -166,13 +162,10 @@ const UploadReports = () => {
     const fetchBookings = async () => {
       try {
         if (assignedLab && assignedLab._id) {
-          // Fetch bookings that need results or verification
           const statuses = ['sample_collected', 'partially_completed', 'result_published'];
           const promises = statuses.map(s => api.localAdminAPI.getLabBookings(assignedLab._id, s, 1, 100));
           const responses = await Promise.all(promises);
           const allBookings = responses.flatMap(res => res.success ? res.data : []);
-
-          // Deddup by _id
           const uniqueMap = new Map();
           allBookings.forEach(b => uniqueMap.set(b._id, b));
           setBookings(transformToPackageRows(Array.from(uniqueMap.values())));
@@ -202,12 +195,10 @@ const UploadReports = () => {
     return [];
   };
 
-  // Refresh data and re-open modal with updated booking (keeps modal open)
   const refreshAndReopenModal = async (bookingId) => {
     const updatedRows = await refreshBookings();
     const updatedRow = updatedRows.find(r => r._id === bookingId);
     if (updatedRow) {
-      // Re-populate modal with fresh data
       setSelectedBooking(updatedRow);
       const initial = {};
       updatedRow.allTests.forEach(test => {
@@ -229,9 +220,7 @@ const UploadReports = () => {
         });
       });
       setResultEntries(initial);
-      // Keep expanded state as-is
     } else {
-      // Booking no longer in pending list (all verified) — close modal
       resetModal();
     }
   };
@@ -240,8 +229,6 @@ const UploadReports = () => {
 
   const handleOpenModal = (row) => {
     setSelectedBooking(row);
-
-    // Pre-populate result entries for all tests
     const initial = {};
     row.allTests.forEach(test => {
       const existingResult = getTestResult(row, test.id);
@@ -261,7 +248,6 @@ const UploadReports = () => {
         };
       });
     });
-
     setResultEntries(initial);
     setExpandedTests({});
     setShowModal(true);
@@ -280,11 +266,9 @@ const UploadReports = () => {
     setExpandedTests(prev => ({ ...prev, [testId]: !prev[testId] }));
   };
 
-  // Helper: detect imaging test
   const isImagingTest = (test) => {
     const imagingCategories = ['imaging', 'cardiology'];
     if (imagingCategories.includes(test.category)) return true;
-    // Also detect by name patterns if category not set
     const imagingNames = ['x-ray', 'xray', 'ecg', 'ekg', 'ct scan', 'mri', 'ultrasound', 'scan', 'mammography', 'fluoroscopy', 'pet scan', 'echo'];
     return imagingNames.some(n => (test.name || '').toLowerCase().includes(n));
   };
@@ -310,17 +294,16 @@ const UploadReports = () => {
       }
     } catch (err) {
       console.error('Error submitting result:', err);
-      Swal.fire({ icon: 'error', title: 'Submit Failed', text: err.message, confirmButtonColor: '#ef4444' });
+      alert('Error: ' + err.message);
     } finally {
       setSavingTestId(null);
     }
   };
 
-  // Handle imaging file upload
   const handleUploadImagingResult = async (testId) => {
     const file = imagingFiles[testId];
     if (!file || !selectedBooking) {
-      Swal.fire({ icon: 'warning', title: 'No File Selected', text: 'Please select an image or PDF file to upload.', confirmButtonColor: '#f59e0b' });
+      alert('Please select an image or PDF file to upload.');
       return;
     }
     try {
@@ -335,7 +318,7 @@ const UploadReports = () => {
       }
     } catch (err) {
       console.error('Error uploading imaging result:', err);
-      Swal.fire({ icon: 'error', title: 'Upload Failed', text: err.message, confirmButtonColor: '#ef4444' });
+      alert('Error: ' + err.message);
     } finally {
       setUploadingImaging(null);
     }
@@ -354,14 +337,25 @@ const UploadReports = () => {
       });
       const data = await response.json();
       if (data.success) {
-        // Keep modal open — refresh data in-place
-        await refreshAndReopenModal(selectedBooking._id);
+        if (data.data.status === 'completed') {
+          Swal.fire({
+            icon: 'success',
+            title: 'Diagnostic Integrity 100%',
+            text: 'All results verified. This record has moved to "View Reports" for final authorization.',
+            confirmButtonColor: '#0f172a',
+            customClass: { popup: 'rounded-[3rem]' }
+          });
+          resetModal();
+          refreshBookings();
+        } else {
+          await refreshAndReopenModal(selectedBooking._id);
+        }
       } else {
         throw new Error(data.message || 'Verification failed');
       }
     } catch (error) {
       console.error('Error verifying:', error);
-      Swal.fire({ icon: 'error', title: 'Verification Failed', text: error.message, confirmButtonColor: '#ef4444' });
+      alert('Error: ' + error.message);
     } finally {
       setVerifying(false);
     }
@@ -372,11 +366,11 @@ const UploadReports = () => {
     if (file) {
       const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
       if (!allowedTypes.includes(file.type)) {
-        Swal.fire({ icon: 'warning', title: 'Invalid File Type', text: 'Please select a PDF, JPEG, or PNG file.', confirmButtonColor: '#f59e0b' });
+        alert('Please select a PDF, JPEG, or PNG file');
         return;
       }
       if (file.size > 10 * 1024 * 1024) {
-        Swal.fire({ icon: 'warning', title: 'File Too Large', text: 'File size must be less than 10MB.', confirmButtonColor: '#f59e0b' });
+        alert('File size must be less than 10MB');
         return;
       }
       setSelectedFile(file);
@@ -386,26 +380,24 @@ const UploadReports = () => {
   const handleUploadReport = async () => {
     if (!selectedFile || !selectedBooking) return;
     if (!selectedBooking.allVerified) {
-      Swal.fire({ icon: 'warning', title: 'Tests Not Verified', text: 'Cannot upload final report until all tests are verified.', confirmButtonColor: '#f59e0b' });
+      alert('Cannot upload final report until all tests are verified.');
       return;
     }
     try {
       setUploading(true);
       const response = await api.bookingAPI.uploadReport(selectedBooking._id, selectedFile);
       if (response.success) {
-        Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true })
-          .fire({ icon: 'success', title: 'Report uploaded successfully!' });
+        alert('Report uploaded!');
         resetModal();
         refreshBookings();
       }
     } catch (error) {
-      Swal.fire({ icon: 'error', title: 'Upload Failed', text: error.message, confirmButtonColor: '#ef4444' });
+      alert('Error: ' + error.message);
     } finally {
       setUploading(false);
     }
   };
 
-  // ── filter ──
   const filteredBookings = bookings.filter(b =>
     b.userId?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     b.userId?.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -413,143 +405,128 @@ const UploadReports = () => {
     b.sampleId?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // ── progress bar component ──
   const ProgressBar = ({ progress, size = 'md' }) => {
     const h = size === 'sm' ? 'h-1.5' : 'h-2.5';
-    const color = progress.percent === 100 ? 'bg-emerald-500' : progress.percent > 0 ? 'bg-amber-500' : 'bg-gray-300';
+    const color = progress.percent === 100 ? 'bg-emerald-500' : progress.percent > 0 ? 'bg-indigo-500' : 'bg-slate-200';
     return (
       <div className="w-full">
-        <div className={`w-full bg-gray-200 rounded-full ${h} overflow-hidden`}>
-          <div className={`${h} rounded-full transition-all duration-500 ${color}`} style={{ width: `${progress.percent}%` }} />
+        <div className={`w-full bg-slate-100 rounded-full ${h} overflow-hidden shadow-inner`}>
+          <div className={`${h} rounded-full transition-all duration-700 ease-out ${color} shadow-lg shadow-indigo-100/20`} style={{ width: `${progress.percent}%` }} />
         </div>
-        <div className="flex justify-between mt-1">
-          <span className="text-xs text-gray-500">{progress.completed}/{progress.total} tests</span>
-          <span className="text-xs font-medium text-gray-700">{progress.percent}%</span>
+        <div className="flex justify-between mt-2">
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{progress.completed}/{progress.total} Assets</span>
+          <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{progress.percent}%</span>
         </div>
       </div>
     );
   };
 
-  // ── sample label print (one label per test) ──
   const printSampleLabel = (row) => {
     const patientName = `${row.userId?.firstName || ''} ${row.userId?.lastName || ''}`;
     const sampleId = row.sampleId || '—';
     const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     const timeStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    const tests = row.displayName || 'Tests';
     const age = row.userId?.age ? `${row.userId.age}Y` : '';
     const gender = row.userId?.gender ? row.userId.gender.charAt(0).toUpperCase() : '';
     const ageGender = [age, gender].filter(Boolean).join('/');
 
-    // Build one label per test
-    const allTests = row.allTests || [];
-    const totalLabels = allTests.length || 1;
-
-    const labelsHTML = allTests.length > 0
-      ? allTests.map((test, idx) => `
-        <div class="label-border">
-          <div class="header">
-            <span class="lab-name">LABMATE360</span>
-            <span class="label-num">${idx + 1} of ${totalLabels}</span>
-            <span class="date-time">${dateStr}<br/>${timeStr}</span>
-          </div>
-          <div class="sample-id">${sampleId}</div>
-          <div class="barcode" data-code="${sampleId}"></div>
-          <div class="test-name">${test.name || 'Test'}</div>
-          <div class="patient-info">
-            <span class="patient-name">${patientName}</span>
-            <span>${ageGender}</span>
-          </div>
-        </div>
-      `).join('')
-      : `
-        <div class="label-border">
-          <div class="header">
-            <span class="lab-name">LABMATE360</span>
-            <span class="date-time">${dateStr}<br/>${timeStr}</span>
-          </div>
-          <div class="sample-id">${sampleId}</div>
-          <div class="barcode" data-code="${sampleId}"></div>
-          <div class="test-name">${row.displayName || 'Tests'}</div>
-          <div class="patient-info">
-            <span class="patient-name">${patientName}</span>
-            <span>${ageGender}</span>
-          </div>
-        </div>
-      `;
-
     const labelHTML = `
       <!DOCTYPE html>
-      <html><head><title>Sample Labels - ${sampleId}</title>
+      <html><head><title>Sample Label - ${sampleId}</title>
       <style>
-        @page { size: 3in 1.8in; margin: 0; }
+        @page { size: 3in 1.5in; margin: 0; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; width: 3in; padding: 0; }
-        .label-border { border: 1.5px solid #333; border-radius: 4px; padding: 5px 8px; height: 1.65in; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; margin: 4px 6px; }
-        .label-border:last-child { page-break-after: auto; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; width: 3in; padding: 6px 8px; }
+        .label-border { border: 1.5px solid #333; border-radius: 4px; padding: 5px 8px; height: 1.35in; display: flex; flex-direction: column; justify-content: space-between; }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #999; padding-bottom: 3px; margin-bottom: 3px; }
         .lab-name { font-size: 8px; font-weight: bold; color: #333; letter-spacing: 0.5px; }
-        .label-num { font-size: 7px; font-weight: bold; color: #fff; background: #333; padding: 1px 5px; border-radius: 3px; }
         .date-time { font-size: 7px; color: #666; text-align: right; }
-        .sample-id { font-family: 'Courier New', monospace; font-size: 13px; font-weight: bold; letter-spacing: 1px; text-align: center; padding: 2px 0; }
+        .sample-id { font-family: 'Courier New', monospace; font-size: 14px; font-weight: bold; letter-spacing: 1px; text-align: center; padding: 3px 0; }
         .barcode { display: flex; justify-content: center; gap: 1px; padding: 2px 0; }
         .barcode span { display: inline-block; height: 18px; background: #000; }
-        .test-name { font-size: 9px; font-weight: 600; color: #222; text-align: center; padding: 2px 4px; background: #f0f0f0; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .patient-info { display: flex; justify-content: space-between; font-size: 9px; border-top: 1px dashed #999; padding-top: 3px; margin-top: 2px; }
         .patient-name { font-weight: bold; color: #111; }
+        .tests { font-size: 7px; color: #555; text-align: center; }
         @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
       </style></head>
       <body>
-        ${labelsHTML}
+        <div class="label-border">
+          <div class="header">
+            <span class="lab-name">LABMATE360</span>
+            <span class="date-time">${dateStr}<br/>${timeStr}</span>
+          </div>
+          <div class="sample-id">${sampleId}</div>
+          <div class="barcode" id="barcode"></div>
+          <div class="tests">${tests}</div>
+          <div class="patient-info">
+            <span class="patient-name">${patientName}</span>
+            <span>${ageGender}</span>
+          </div>
+        </div>
         <script>
-          // Generate barcode for each label
-          document.querySelectorAll('.barcode').forEach(container => {
-            const code = container.getAttribute('data-code') || '';
-            for (let i = 0; i < code.length; i++) {
-              const c = code.charCodeAt(i);
-              const w = (c % 3) + 1;
-              const bar = document.createElement('span');
-              bar.style.width = w + 'px';
-              container.appendChild(bar);
-              const gap = document.createElement('span');
-              gap.style.width = '1px';
-              gap.style.background = 'transparent';
-              container.appendChild(gap);
-            }
-          });
+          const code = '${sampleId}';
+          const container = document.getElementById('barcode');
+          for (let i = 0; i < code.length; i++) {
+            const c = code.charCodeAt(i);
+            const w = (c % 3) + 1;
+            const bar = document.createElement('span');
+            bar.style.width = w + 'px';
+            container.appendChild(bar);
+            const gap = document.createElement('span');
+            gap.style.width = '1px';
+            gap.style.background = 'transparent';
+            container.appendChild(gap);
+          }
           window.onload = () => window.print();
         <\/script>
       </body></html>
     `;
 
-    const printWindow = window.open('', '_blank', 'width=340,height=260');
+    const printWindow = window.open('', '_blank', 'width=320,height=200');
     if (printWindow) {
       printWindow.document.write(labelHTML);
       printWindow.document.close();
     }
   };
 
-  // ── table columns ──
   const columns = [
     {
-      header: 'Patient',
+      header: 'Subject / Clinical Node',
       accessor: 'userId',
       render: (row) => (
-        <div>
-          <div className="font-medium text-gray-900">{row.userId?.firstName} {row.userId?.lastName}</div>
-          <div className="text-xs text-gray-500">{row.userId?.email}</div>
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-[1rem] bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400">
+            <User className="h-6 w-6" />
+          </div>
+          <div>
+            <div className="text-[13px] font-black text-slate-900 uppercase tracking-tight leading-none mb-1">
+              {row.userId?.firstName} {row.userId?.lastName}
+            </div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              {row.userId?.email}
+            </div>
+          </div>
         </div>
       )
     },
     {
-      header: 'Package / Tests',
+      header: 'Diagnostic Logic',
       accessor: 'displayName',
       render: (row) => (
-        <div>
-          <div className="flex items-center text-sm font-medium text-gray-900">
-            <Package className="h-4 w-4 mr-1.5 text-primary-600 flex-shrink-0" />
-            <span className="truncate max-w-[200px]">{row.displayName}</span>
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-indigo-50/50 rounded-lg text-indigo-500 border border-indigo-100/50">
+            <Package size={14} />
           </div>
-          <div className="text-xs text-gray-500 ml-5.5 mt-0.5">{row.progress.total} tests</div>
+          <div>
+            <div className="text-[11px] font-black text-slate-900 uppercase tracking-wider mb-0.5">
+              {row.displayName}
+            </div>
+            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <Layers size={10} className="text-slate-300" />
+              {row.progress.total} Assets Queued
+            </div>
+          </div>
         </div>
       )
     },
@@ -557,15 +534,17 @@ const UploadReports = () => {
       header: 'Sample ID',
       accessor: 'sampleId',
       render: (row) => (
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-700">{row.sampleId || '—'}</span>
+        <div className="flex items-center gap-3">
+          <div className="px-3 py-1.5 bg-slate-900 text-white rounded-xl text-[10px] font-black tracking-widest shadow-md shadow-slate-200">
+            {row.sampleId || '—'}
+          </div>
           {row.sampleId && row.sampleId !== '—' && (
             <button
               onClick={(e) => { e.stopPropagation(); printSampleLabel(row); }}
-              className="p-1 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
-              title="Print Sample Label"
+              className="p-2.5 bg-slate-50 text-slate-400 hover:text-slate-900 rounded-xl border border-slate-100 transition-all font-black"
+              title="Generate Physical Label"
             >
-              <Printer className="h-3.5 w-3.5" />
+              <Printer className="h-4 w-4" />
             </button>
           )}
         </div>
@@ -575,322 +554,279 @@ const UploadReports = () => {
       header: 'Progress',
       accessor: 'progress',
       render: (row) => (
-        <div className="w-32">
+        <div className="w-40">
           <ProgressBar progress={row.progress} size="sm" />
         </div>
       )
     },
     {
-      header: 'Status',
+      header: 'System State',
       accessor: 'packageStatus',
       render: (row) => {
         const colors = {
-          'Processing': 'bg-blue-50 text-blue-700 border-blue-200',
-          'Partially Completed': 'bg-amber-50 text-amber-700 border-amber-200',
-          'Pending Verify': 'bg-indigo-50 text-indigo-700 border-indigo-200',
-          'Verified': 'bg-emerald-50 text-emerald-700 border-emerald-200'
+          'Processing': 'bg-blue-50 text-blue-600 border-blue-100',
+          'Partially Completed': 'bg-amber-50 text-amber-600 border-amber-100',
+          'Pending Verify': 'bg-indigo-50 text-indigo-600 border-indigo-100',
+          'Verified': 'bg-emerald-50 text-emerald-600 border-emerald-100'
         };
         return (
-          <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${colors[row.packageStatus] || 'bg-gray-50 text-gray-700 border-gray-200'}`}>
-            {row.packageStatus}
+          <span className={`px-4 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-full border ${colors[row.packageStatus] || 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+            {row.packageStatus === 'Processing' ? 'In Analysis' : row.packageStatus === 'Partially Completed' ? 'Sync Pending' : row.packageStatus === 'Pending Verify' ? 'Review Required' : 'Synchronized'}
           </span>
         );
       }
     },
     {
-      header: 'Action',
+      header: 'Command',
       accessor: '_id',
       render: (row) => (
         <button
           onClick={() => handleOpenModal(row)}
-          className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center transition-colors shadow-sm ${row.packageStatus === 'Pending Verify'
-            ? 'text-white bg-indigo-600 hover:bg-indigo-700'
-            : 'text-white bg-primary-600 hover:bg-primary-700'
+          className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-xl transition-all hover:scale-[1.05] active:scale-[0.95] ${row.packageStatus === 'Pending Verify'
+            ? 'text-white bg-indigo-600 shadow-indigo-100 hover:bg-indigo-700'
+            : 'text-white bg-slate-900 shadow-slate-200 hover:bg-slate-800'
             }`}
         >
           {row.packageStatus === 'Pending Verify' ? (
-            <><CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Verify Results</>
+            <><ShieldCheck className="h-4 w-4" /> Authorize</>
           ) : (
-            <><Upload className="h-3.5 w-3.5 mr-1.5" /> Add Results</>
+            <><ArrowUpRight className="h-4 w-4" /> Input Data</>
           )}
         </button>
       )
     }
   ];
 
-  // ── render ──
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Upload Results</h1>
-        <p className="text-sm text-gray-500">Enter test results grouped by package. All tests must be verified before generating a final report.</p>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="space-y-10 pb-12"
+    >
+      {/* Cinematic Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <div className="flex items-center space-x-2 mb-3">
+            <span className="px-3 py-1 bg-slate-900 text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-full">
+              Analytical Node: {user?.assignedLab?.slice(-6).toUpperCase() || 'CORE'}
+            </span>
+            <div className="h-0.5 w-12 bg-slate-200"></div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              {moment().format('MMMM DD, YYYY')}
+            </span>
+          </div>
+          <h1 className="text-5xl font-black text-slate-900 tracking-tighter uppercase mb-2">
+            Clinical Results
+          </h1>
+          <p className="text-lg text-slate-500 font-medium">
+            Diagnostic input interface for <span className="text-slate-900 font-bold">{assignedLab?.name || 'Authorized Lab'}</span>
+          </p>
+        </div>
+
+        <div className="flex items-center space-x-3 bg-white p-2 rounded-3xl border border-gray-100 shadow-sm">
+          <div className="p-3 bg-slate-50 rounded-2xl">
+            <Microscope className="h-5 w-5 text-slate-900" />
+          </div>
+          <div className="pr-6">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data Stream</p>
+            <p className="text-sm font-bold text-slate-900 uppercase">Secure Ingestion</p>
+          </div>
+        </div>
       </div>
 
-      <DashboardTable
-        data={filteredBookings}
-        columns={columns}
-        loading={loading}
-        onSearch={setSearchTerm}
-        searchValue={searchTerm}
-        searchPlaceholder="Search by patient, package, or sample ID..."
-        emptyMessage="No pending samples found"
-      />
+      {/* Operational Ledger Table */}
+      <div className="bg-white rounded-[3.5rem] border border-slate-50 shadow-2xl shadow-slate-100 overflow-hidden">
+        <div className="p-8 border-b border-gray-100 bg-slate-50/30">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Operational Ledger</h3>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Pending Clinical Entries</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="px-4 py-2 bg-white rounded-2xl border border-gray-100 shadow-sm text-[10px] font-black uppercase tracking-widest text-slate-400">
+                {filteredBookings.length} Nodes Pending
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="p-4">
+          <DashboardTable
+            data={filteredBookings}
+            columns={columns}
+            loading={loading}
+            onSearch={setSearchTerm}
+            searchValue={searchTerm}
+            searchPlaceholder="Identify Subject or Sample ID..."
+            emptyMessage="No pending clinical entries detected"
+          />
+        </div>
+      </div>
 
       {/* ── Package Accordion Modal ── */}
       {showModal && selectedBooking && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-100"
+          >
             {/* Modal Header */}
-            <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-              <div>
-                <h3 className="font-semibold text-lg text-gray-900">
-                  {selectedBooking.displayName}
-                </h3>
-                <p className="text-sm text-gray-500">
-                  Patient: {selectedBooking.userId?.firstName} {selectedBooking.userId?.lastName}
-                  {' • '}Sample: <span className="font-mono">{selectedBooking.sampleId}</span>
-                </p>
+            <div className="px-10 py-8 border-b border-slate-50 flex justify-between items-center bg-white">
+              <div className="flex items-center gap-6">
+                <div className="h-16 w-16 rounded-[1.5rem] bg-slate-900 text-white flex items-center justify-center shadow-xl shadow-slate-200">
+                  <Activity className="h-7 w-7" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-2">
+                    {selectedBooking.displayName}
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[9px] font-black uppercase tracking-widest rounded-lg border border-indigo-100">
+                      Subject: {selectedBooking.userId?.firstName} {selectedBooking.userId?.lastName}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+                      ID: <span className="font-mono text-slate-400">{selectedBooking.sampleId}</span>
+                    </span>
+                  </div>
+                </div>
               </div>
-              <button onClick={resetModal} className="p-1 hover:bg-gray-200 rounded-full">
-                <X className="h-5 w-5 text-gray-500" />
+              <button onClick={resetModal} className="p-4 bg-slate-50 text-slate-400 hover:text-slate-900 rounded-2xl transition-all">
+                <X className="h-6 w-6" />
               </button>
             </div>
 
-            {/* Package Progress */}
-            <div className="px-6 pt-4 pb-2">
+            {/* Package Analytics */}
+            <div className="px-10 py-6 bg-slate-50/50 border-b border-slate-50">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Diagnostic Progress Matrix</p>
+                <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">{selectedBooking.progress.percent}% Synchronized</span>
+              </div>
               <ProgressBar progress={selectedBooking.progress} />
-              <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                <span className="flex items-center"><span className="h-2 w-2 rounded-full bg-emerald-500 mr-1" /> Verified: {selectedBooking.progress.verified}</span>
-                <span className="flex items-center"><span className="h-2 w-2 rounded-full bg-amber-500 mr-1" /> Completed: {selectedBooking.progress.completed - selectedBooking.progress.verified}</span>
-                <span className="flex items-center"><span className="h-2 w-2 rounded-full bg-gray-300 mr-1" /> Pending: {selectedBooking.progress.total - selectedBooking.progress.completed}</span>
+              <div className="mt-4 flex flex-wrap gap-4">
+                <div className="flex items-center bg-white px-3 py-1.5 rounded-full border border-slate-100">
+                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 mr-2 animate-pulse" />
+                  <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Verified: {selectedBooking.progress.verified}</span>
+                </div>
+                <div className="flex items-center bg-white px-3 py-1.5 rounded-full border border-slate-100">
+                  <div className="h-1.5 w-1.5 rounded-full bg-amber-500 mr-2" />
+                  <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Processing: {selectedBooking.progress.completed - selectedBooking.progress.verified}</span>
+                </div>
+                <div className="flex items-center bg-white px-3 py-1.5 rounded-full border border-slate-100">
+                  <div className="h-1.5 w-1.5 rounded-full bg-slate-200 mr-2" />
+                  <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Queued: {selectedBooking.progress.total - selectedBooking.progress.completed}</span>
+                </div>
               </div>
             </div>
 
             {/* Test Accordion List */}
-            <div className="px-6 py-4 overflow-y-auto flex-1 space-y-2">
+            <div className="px-10 py-8 overflow-y-auto flex-1 space-y-4 custom-scrollbar bg-white">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Clinical Asset Inventory</h4>
+                <div className="h-px flex-1 bg-slate-50 mx-6" />
+              </div>
               {selectedBooking.allTests.map((test, idx) => {
                 const testStatus = getTestStatus(selectedBooking, test.id);
                 const isExpanded = expandedTests[test.id];
                 const testResult = getTestResult(selectedBooking, test.id);
                 const isDisabled = testStatus === 'verified';
-
-                const statusColors = {
-                  pending: 'bg-gray-100 text-gray-600',
-                  completed: 'bg-indigo-100 text-indigo-700',
-                  verified: 'bg-emerald-100 text-emerald-700'
-                };
-
                 return (
-                  <div key={test.id || idx} className={`border rounded-lg overflow-hidden ${testStatus === 'verified' ? 'border-emerald-200 bg-emerald-50/30' : 'border-gray-200'}`}>
-                    {/* Accordion Header */}
-                    <button
-                      onClick={() => toggleTest(test.id)}
-                      className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
+                  <div key={test.id || idx} className={`rounded-[2rem] overflow-hidden transition-all duration-300 border ${testStatus === 'verified' ? 'bg-emerald-50/10 border-emerald-100' : 'bg-white border-slate-100'}`}>
+                    <button onClick={() => toggleTest(test.id)} className={`w-full px-8 py-5 flex items-center justify-between transition-all ${isExpanded ? 'bg-slate-50/50' : 'hover:bg-slate-50/30'}`}>
+                      <div className="flex items-center gap-4">
+                        <div className={`p-2.5 rounded-xl transition-colors ${testStatus === 'verified' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400 font-black'}`}>
+                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </div>
                         <div>
-                          <span className="text-sm font-medium text-gray-900">{test.name}</span>
-                          <span className="text-xs text-gray-400 ml-2">({test.sourceName})</span>
+                          <p className="text-[11px] font-black text-slate-900 uppercase tracking-wider">{test.name}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{test.sourceName}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[testStatus]}`}>
-                          {testStatus === 'pending' ? 'Pending' : testStatus === 'completed' ? 'Completed' : 'Verified'}
+                      <div className="flex items-center gap-3">
+                        <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-lg border ${testStatus === 'verified' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : testStatus === 'completed' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                          {testStatus === 'pending' ? 'Queued' : testStatus === 'completed' ? 'Processed' : 'Validated'}
                         </span>
-                        {testStatus === 'verified' && <CheckCircle className="h-4 w-4 text-emerald-500" />}
+                        {testStatus === 'verified' && <ShieldCheck className="h-4 w-4 text-emerald-500" />}
                       </div>
                     </button>
-
-                    {/* Accordion Body */}
                     {isExpanded && (
                       <div className="px-4 pb-4 border-t border-gray-100 pt-3">
                         {isImagingTest(test) ? (
-                          /* ── Imaging Test: File Upload UI ── */
-                          <div className="space-y-3">
-                            {/* Show existing uploaded file */}
+                          <div className="p-8 space-y-8 bg-slate-50/30">
                             {testResult?.resultFile && (
-                              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                                <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium mb-2">
-                                  <FileImage className="h-4 w-4" />
-                                  File uploaded
+                              <div className="bg-emerald-50/50 border border-emerald-100 rounded-[2rem] p-6 shadow-sm">
+                                <div className="flex items-center gap-3 text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-4">
+                                  <ShieldCheck className="h-4 w-4" /> Asset Verified in Clinical Node
                                 </div>
-                                <img
-                                  src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}/${testResult.resultFile}`}
-                                  alt={test.name}
-                                  className="max-h-48 rounded-lg border border-emerald-200 object-contain"
-                                  onError={(e) => { e.target.style.display = 'none'; }}
-                                />
+                                <div className="bg-white p-4 rounded-3xl border border-emerald-100/50">
+                                  <img src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}/${testResult.resultFile}`} alt={test.name} className="max-h-64 mx-auto rounded-2xl object-contain shadow-md" onError={(e) => { e.target.style.display = 'none'; }} />
+                                </div>
                                 {testResult?.findings && (
-                                  <p className="mt-2 text-sm text-gray-700 bg-white rounded p-2 border border-emerald-100">
-                                    <strong>Findings:</strong> {testResult.findings}
-                                  </p>
+                                  <div className="mt-4 p-5 bg-white rounded-2xl border border-emerald-100">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Clinical Findings</p>
+                                    <p className="text-sm text-slate-700 leading-relaxed font-medium">{testResult.findings}</p>
+                                  </div>
                                 )}
                               </div>
                             )}
-
                             {!isDisabled && (
                               <>
-                                {/* File Upload Zone */}
-                                <div
-                                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer
-                                    ${imagingFiles[test.id] ? 'border-primary-400 bg-primary-50' : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'}`}
-                                  onClick={() => document.getElementById(`imaging-file-${test.id}`)?.click()}
-                                >
-                                  <input
-                                    id={`imaging-file-${test.id}`}
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/jpg,application/pdf"
-                                    className="hidden"
-                                    onChange={(e) => {
-                                      const file = e.target.files[0];
-                                      if (file) {
-                                        if (file.size > 15 * 1024 * 1024) {
-                                          Swal.fire({ icon: 'warning', title: 'File Too Large', text: 'File must be under 15MB.', confirmButtonColor: '#f59e0b' });
-                                          return;
-                                        }
-                                        setImagingFiles(prev => ({ ...prev, [test.id]: file }));
-                                      }
-                                    }}
-                                  />
+                                <div className={`group relative border-2 border-dashed rounded-[2.5rem] p-10 text-center transition-all cursor-pointer ${imagingFiles[test.id] ? 'border-indigo-400 bg-indigo-50/50' : 'border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50'}`} onClick={() => document.getElementById(`imaging-file-${test.id}`)?.click()}>
+                                  <input id={`imaging-file-${test.id}`} type="file" accept="image/jpeg,image/png,image/jpg,application/pdf" className="hidden" onChange={(e) => { const file = e.target.files[0]; if (file) { if (file.size > 15 * 1024 * 1024) { Swal.fire('Limit Exceeded', 'File must be under 15MB', 'error'); return; } setImagingFiles(prev => ({ ...prev, [test.id]: file })); } }} />
                                   {imagingFiles[test.id] ? (
-                                    <div>
-                                      <FileImage className="h-8 w-8 text-primary-500 mx-auto mb-2" />
-                                      <p className="text-sm font-medium text-primary-700">{imagingFiles[test.id].name}</p>
-                                      <p className="text-xs text-gray-500 mt-1">{(imagingFiles[test.id].size / (1024 * 1024)).toFixed(2)} MB — Click to change</p>
+                                    <div className="space-y-3">
+                                      <div className="h-16 w-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-indigo-100"><FileImage className="h-8 w-8" /></div>
+                                      <p className="text-sm font-black text-slate-900 uppercase tracking-tight">{imagingFiles[test.id].name}</p>
+                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{(imagingFiles[test.id].size / (1024 * 1024)).toFixed(2)} MB — Click to Rotate Asset</p>
                                     </div>
                                   ) : (
-                                    <div>
-                                      <ImagePlus className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                                      <p className="text-sm text-gray-600 font-medium">Upload {test.name} Image/Report</p>
-                                      <p className="text-xs text-gray-400 mt-1">JPG, PNG, or PDF • Max 15MB</p>
+                                    <div className="space-y-4">
+                                      <div className="h-20 w-20 bg-slate-50 text-slate-300 rounded-[2rem] flex items-center justify-center mx-auto group-hover:scale-110 transition-transform"><ImagePlus className="h-10 w-10" /></div>
+                                      <div><p className="text-sm font-black text-slate-900 uppercase tracking-widest">Capture Optical Data</p><p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-2">JPG, PNG, or PDF • Physical Node Limit 15MB</p></div>
                                     </div>
                                   )}
                                 </div>
-
-                                {/* Findings Textarea */}
-                                <div>
-                                  <label className="text-sm font-medium text-gray-700 block mb-1">Findings / Interpretation</label>
-                                  <textarea
-                                    rows={3}
-                                    value={imagingFindings[test.id] || ''}
-                                    onChange={(e) => setImagingFindings(prev => ({ ...prev, [test.id]: e.target.value }))}
-                                    placeholder="Enter medical findings, observations, or interpretation..."
-                                    className="w-full border border-gray-300 rounded-lg text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
-                                  />
+                                <div className="space-y-3">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 block">Analytical Interpretation</label>
+                                  <textarea rows={3} value={imagingFindings[test.id] || ''} onChange={(e) => setImagingFindings(prev => ({ ...prev, [test.id]: e.target.value }))} placeholder="Enter clinical observations or interpretation matrix..." className="w-full bg-white border border-slate-100 rounded-[1.5rem] text-sm px-6 py-4 focus:ring-4 focus:ring-slate-900/5 focus:border-slate-200 transition-all font-medium placeholder:text-slate-300" />
                                 </div>
-
-                                {/* Upload Button */}
-                                <div className="flex justify-end gap-2 pt-1">
-                                  <button
-                                    onClick={() => handleUploadImagingResult(test.id)}
-                                    disabled={!imagingFiles[test.id] || uploadingImaging === test.id}
-                                    className="px-4 py-2 text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg disabled:opacity-50 flex items-center gap-1.5 transition-colors shadow-sm"
-                                  >
-                                    <Upload className="h-3.5 w-3.5" />
-                                    {uploadingImaging === test.id ? 'Uploading...' : 'Upload Result'}
+                                <div className="flex justify-end pt-2">
+                                  <button onClick={() => handleUploadImagingResult(test.id)} disabled={!imagingFiles[test.id] || uploadingImaging === test.id} className="px-10 py-4 bg-slate-900 text-white text-[10px] font-black uppercase tracking-[0.3em] rounded-2xl shadow-xl shadow-slate-200 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-3 disabled:opacity-50">
+                                    <Upload className="h-4 w-4" /> {uploadingImaging === test.id ? 'Ingesting...' : 'Ingest Asset'}
                                   </button>
                                 </div>
                               </>
                             )}
-
-                            {/* Verify button for imaging results */}
-                            {testStatus === 'completed' && (
-                              <div className="flex justify-end">
-                                <button
-                                  onClick={() => handleVerifyTest(test.id)}
-                                  disabled={verifying}
-                                  className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-50 flex items-center transition-colors shadow-sm"
-                                >
-                                  <CheckCircle className="w-3.5 h-3.5 mr-1" />
-                                  {verifying ? 'Verifying...' : 'Verify'}
-                                </button>
-                              </div>
-                            )}
                           </div>
                         ) : Array.isArray(resultEntries[test.id]) && resultEntries[test.id].length > 0 ? (
-                          /* ── Normal Test: Value Input Fields ── */
-                          <div className="space-y-3">
+                          <div className="p-8 space-y-6 bg-slate-50/30">
                             {resultEntries[test.id].map((field, fIdx) => (
-                              <div key={fIdx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                                <div className="flex justify-between mb-1">
-                                  <label className="text-sm font-medium text-gray-700">{field.label || 'Value'}</label>
-                                  {field.unit && <span className="text-xs text-gray-500 bg-white px-1.5 py-0.5 rounded border">{field.unit}</span>}
+                              <div key={fIdx} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-md">
+                                <div className="flex justify-between items-center mb-3">
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{field.label || 'Metric Value'}</label>
+                                  {field.unit && <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-100 uppercase tracking-widest">{field.unit}</span>}
                                 </div>
                                 {field.type === 'boolean' ? (
-                                  <select
-                                    disabled={isDisabled}
-                                    value={field.value ? 'true' : 'false'}
-                                    onChange={(e) => {
-                                      const updated = [...resultEntries[test.id]];
-                                      updated[fIdx] = { ...updated[fIdx], value: e.target.value === 'true' };
-                                      setResultEntries(prev => ({ ...prev, [test.id]: updated }));
-                                    }}
-                                    className="w-full mt-1 border-gray-300 rounded-md text-sm disabled:bg-gray-100 disabled:text-gray-500"
-                                  >
-                                    <option value="false">Negative / No</option>
-                                    <option value="true">Positive / Yes</option>
+                                  <select disabled={isDisabled} value={field.value ? 'true' : 'false'} onChange={(e) => { const updated = [...resultEntries[test.id]]; updated[fIdx] = { ...updated[fIdx], value: e.target.value === 'true' }; setResultEntries(prev => ({ ...prev, [test.id]: updated })); }} className="w-full bg-slate-50 border-transparent rounded-2xl py-4 px-6 text-sm font-bold uppercase tracking-widest focus:bg-white focus:ring-4 focus:ring-slate-900/5 transition-all text-slate-900 disabled:opacity-50">
+                                    <option value="false">Negative / Void</option><option value="true">Positive / Detected</option>
                                   </select>
                                 ) : (
-                                  <input
-                                    type={field.type === 'number' ? 'number' : 'text'}
-                                    disabled={isDisabled}
-                                    value={field.value}
-                                    onChange={(e) => {
-                                      const updated = [...resultEntries[test.id]];
-                                      updated[fIdx] = {
-                                        ...updated[fIdx],
-                                        value: field.type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value
-                                      };
-                                      setResultEntries(prev => ({ ...prev, [test.id]: updated }));
-                                    }}
-                                    placeholder={field.referenceRange ? `Range: ${field.referenceRange}` : 'Enter value'}
-                                    className={`w-full mt-1 border border-gray-300 rounded-md text-sm disabled:cursor-not-allowed px-3 py-2 ${isAbnormal(field.value, field.referenceRange)
-                                      ? 'bg-red-50 border-red-300 text-red-900 focus:ring-red-500 focus:border-red-500'
-                                      : 'focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100'
-                                      }`}
-                                  />
+                                  <input type={field.type === 'number' ? 'number' : 'text'} disabled={isDisabled} value={field.value} onChange={(e) => { const updated = [...resultEntries[test.id]]; updated[fIdx] = { ...updated[fIdx], value: field.type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value }; setResultEntries(prev => ({ ...prev, [test.id]: updated })); }} placeholder={field.referenceRange ? `Reference: ${field.referenceRange}` : 'Enter scientific value'} className={`w-full py-4 px-6 rounded-2xl text-sm font-bold transition-all disabled:cursor-not-allowed ${isAbnormal(field.value, field.referenceRange) ? 'bg-rose-50 border border-rose-100 text-rose-900 focus:ring-rose-200' : 'bg-slate-50 border-transparent text-slate-900 focus:bg-white focus:ring-4 focus:ring-slate-900/5'}`} />
                                 )}
                                 {field.referenceRange && (
-                                  <div className={`mt-1 flex items-center text-xs ${isAbnormal(field.value, field.referenceRange) ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
-                                    <AlertCircle className="h-3 w-3 mr-1" />
-                                    Ref Range: {field.referenceRange}
-                                    {isAbnormal(field.value, field.referenceRange) && (
-                                      <span className="ml-2 bg-red-100 px-2 py-0.5 rounded text-red-800">Abnormal</span>
-                                    )}
+                                  <div className="mt-3 flex items-center justify-between">
+                                    <div className="flex items-center text-[9px] font-bold text-slate-400 uppercase tracking-widest"><Zap className="h-3 w-3 mr-1.5" /> Ref Matrix: {field.referenceRange}</div>
+                                    {isAbnormal(field.value, field.referenceRange) && <span className="flex items-center gap-1 px-2 py-0.5 bg-rose-100 text-rose-700 text-[8px] font-black uppercase tracking-widest rounded-md animate-pulse"><AlertCircle className="h-3 w-3" /> Deviation Detected</span>}
                                   </div>
                                 )}
                               </div>
                             ))}
-
-                            {/* Per-test action buttons */}
-                            <div className="flex justify-end gap-2 pt-2">
-                              {testStatus === 'pending' && (
-                                <button
-                                  onClick={() => handleSaveTestResult(test.id)}
-                                  disabled={savingTestId === test.id}
-                                  className="px-3 py-1.5 text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg disabled:opacity-50 flex items-center transition-colors shadow-sm"
-                                >
-                                  {savingTestId === test.id ? 'Saving...' : 'Save Result'}
-                                </button>
-                              )}
-                              {testStatus === 'completed' && (
-                                <button
-                                  onClick={() => handleVerifyTest(test.id)}
-                                  disabled={verifying}
-                                  className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-50 flex items-center transition-colors shadow-sm"
-                                >
-                                  <CheckCircle className="w-3.5 h-3.5 mr-1" />
-                                  {verifying ? 'Verifying...' : 'Verify'}
-                                </button>
-                              )}
+                            <div className="flex justify-end gap-4 pt-2">
+                              {testStatus === 'pending' && <button onClick={() => handleSaveTestResult(test.id)} disabled={savingTestId === test.id} className="px-8 py-4 bg-slate-900 text-white text-[10px] font-black uppercase tracking-[0.3em] rounded-2xl shadow-xl shadow-slate-200 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50">{savingTestId === test.id ? 'Synchronizing...' : 'Commit Results'}</button>}
+                              {testStatus === 'completed' && <button onClick={() => handleVerifyTest(test.id)} disabled={verifying} className="px-8 py-4 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-[0.3em] rounded-2xl shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-50"><ShieldCheck className="w-4 h-4" /> {verifying ? 'Validating...' : 'Authorize Data'}</button>}
                             </div>
                           </div>
                         ) : (
-                          <div className="text-center py-4 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300 text-sm">
-                            No predefined fields for this test. Upload a file report instead.
-                          </div>
+                          <div className="text-center py-4 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300 text-sm">No predefined fields for this test. Upload a file report instead.</div>
                         )}
                       </div>
                     )}
@@ -900,35 +836,27 @@ const UploadReports = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-gray-100 bg-gray-50">
+            <div className="px-10 py-8 border-t border-slate-50 bg-white">
               <div className="flex items-center justify-between">
-                <div className="text-xs text-gray-500">
+                <div className="flex-1 pr-6">
                   {!selectedBooking.allVerified && (
-                    <span className="flex items-center text-amber-600">
-                      <AlertCircle className="h-3.5 w-3.5 mr-1" />
-                      All tests must be verified before generating a report
-                    </span>
+                    <div className="flex items-center gap-2 text-amber-600 bg-amber-50/50 px-4 py-3 rounded-2xl border border-amber-100/50">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Node Synchronicity Error: All diagnostic metrics must be verified before final report generation.</span>
+                    </div>
                   )}
                 </div>
-                <div className="flex gap-3">
-                  <button onClick={resetModal} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg transition-colors">
-                    Close
-                  </button>
-                  {/* Upload Report section - only for fully verified packages */}
+                <div className="flex gap-4 items-center">
+                  <button onClick={resetModal} className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-900 transition-colors">Close Node</button>
                   {selectedBooking.allVerified && (
-                    <div className="flex items-center gap-2">
-                      <label className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg cursor-pointer flex items-center transition-colors shadow-sm">
-                        <Upload className="h-4 w-4 mr-1.5" />
-                        {selectedFile ? selectedFile.name : 'Upload Report'}
+                    <div className="flex items-center gap-4">
+                      <label className="px-8 py-4 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.3em] rounded-2xl shadow-xl shadow-emerald-100 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center gap-2">
+                        <Upload className="h-4 w-4" /> {selectedFile ? selectedFile.name : 'Select Clinical Record'}
                         <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileSelect} className="hidden" />
                       </label>
                       {selectedFile && (
-                        <button
-                          onClick={handleUploadReport}
-                          disabled={uploading}
-                          className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg disabled:opacity-50 flex items-center transition-colors shadow-sm"
-                        >
-                          {uploading ? 'Uploading...' : 'Submit Report'}
+                        <button onClick={handleUploadReport} disabled={uploading} className="px-10 py-4 bg-slate-900 text-white text-[10px] font-black uppercase tracking-[0.3em] rounded-2xl shadow-xl shadow-slate-200 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-3 disabled:opacity-50">
+                          <ShieldCheck className="h-4 w-4" /> {uploading ? 'Transmitting...' : 'Transmit Report'}
                         </button>
                       )}
                     </div>
@@ -936,10 +864,10 @@ const UploadReports = () => {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
 

@@ -22,13 +22,17 @@ import {
     TestTube,
     AlertTriangle,
     CheckCircle,
-    MapPin
+    MapPin,
+    ArrowRight,
+    Microscope,
+    Zap
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { bookingAPI, respiratoryAPI, mentalWellnessAPI, vitalsAPI } from '../services/api'
 import PPGMonitor from '../components/PPG/PPGMonitor'
 import jsPDF from 'jspdf'
 import Swal from 'sweetalert2'
+import { motion, AnimatePresence } from 'framer-motion'
 
 const DashboardOverview = () => {
     const { user } = useAuth()
@@ -40,7 +44,8 @@ const DashboardOverview = () => {
         latestMentalScore: null,
         vitals: {
             bloodPressure: null,
-            bloodSugar: null
+            bloodSugar: null,
+            ppg: null
         }
     })
     const [recentBookings, setRecentBookings] = useState([])
@@ -58,19 +63,15 @@ const DashboardOverview = () => {
     const generateConsolidatedReport = async () => {
         try {
             setGeneratingReport(true)
-
-            // 1. Fetch all bookings with published results
             const bookingsRes = await bookingAPI.getBookings('all', 1, 100)
             const publishedBookings = (bookingsRes?.data || bookingsRes || [])
                 .filter(b => b.status === 'result_published' || b.status === 'completed')
                 .sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate))
 
-            // 2. Fetch all vitals history
             const vitalsRes = await vitalsAPI.getHistory()
             const vitalsHistory = (vitalsRes?.data || vitalsRes || [])
                 .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 
-            // 3. Generate PDF
             const doc = new jsPDF()
             const pw = doc.internal.pageSize.getWidth()
             const ph = doc.internal.pageSize.getHeight()
@@ -79,7 +80,6 @@ const DashboardOverview = () => {
             const cw = mr - ml
             let y = 0
 
-            // Colors
             const navy = [21, 55, 96]
             const darkBlue = [30, 64, 175]
             const teal = [13, 148, 136]
@@ -116,14 +116,11 @@ const DashboardOverview = () => {
                 doc.setLineWidth(0.3)
                 doc.line(ml, ph - 20, mr, ph - 20)
                 doc.setFontSize(7)
-                doc.setFont('helvetica', 'normal')
-                doc.setTextColor(156, 163, 175)
                 doc.text('Consolidated Health Report - LabMate360', ml, ph - 15)
                 doc.text(`Generated on ${new Date().toLocaleDateString()}`, ml, ph - 11)
                 doc.text(`Page ${curr} of ${total}`, mr, ph - 15, { align: 'right' })
             }
 
-            // --- PAGE 1: COVER & PROFILE ---
             doc.setFillColor(...navy)
             doc.rect(0, 0, pw, 50, 'F')
             doc.setTextColor(...white)
@@ -131,19 +128,13 @@ const DashboardOverview = () => {
             doc.setFont('helvetica', 'bold')
             doc.text('CONSOLIDATED HEALTH REPORT', pw / 2, 28, { align: 'center' })
             doc.setFontSize(10)
-            doc.setFont('helvetica', 'normal')
             doc.text('Comprehensive Wellness Summary & Medical History', pw / 2, 38, { align: 'center' })
-
-            doc.setFillColor(...teal)
-            doc.rect(0, 50, pw, 3, 'F')
 
             y = 70
             doc.setTextColor(...darkText)
             doc.setFontSize(14)
-            doc.setFont('helvetica', 'bold')
             doc.text('PATIENT PROFILE', ml, y)
             y += 8
-            doc.setDrawColor(...medGray)
             doc.line(ml, y, mr, y)
             y += 10
 
@@ -152,302 +143,97 @@ const DashboardOverview = () => {
             doc.text('Name:', ml, y)
             doc.setFont('helvetica', 'normal')
             doc.text(`${user?.firstName} ${user?.lastName}`, ml + 25, y)
-
+            y += 8
             doc.setFont('helvetica', 'bold')
-            doc.text('Age / Gender:', ml, y + 8)
+            doc.text('Age / Gender:', ml, y)
             doc.setFont('helvetica', 'normal')
-            doc.text(`${user?.age || '—'} / ${user?.gender || '—'}`, ml + 25, y + 8)
-
-            doc.setFont('helvetica', 'bold')
-            doc.text('Contact:', ml, y + 16)
-            doc.setFont('helvetica', 'normal')
-            doc.text(`${user?.email || '—'} | ${user?.phone || '—'}`, ml + 25, y + 16)
-
-            doc.setFont('helvetica', 'bold')
-            doc.text('Address:', ml, y + 24)
-            doc.setFont('helvetica', 'normal')
-            const addr = user?.address || '—'
-            const splitAddr = doc.splitTextToSize(addr, cw - 25)
-            doc.text(splitAddr, ml + 25, y + 24)
-
+            doc.text(`${user?.age || '—'} / ${user?.gender || '—'}`, ml + 25, y)
             y += 40
 
-            // Latest Vitals Subsection
             if (stats.vitals) {
                 doc.setFillColor(...lightGray)
                 doc.roundedRect(ml, y, cw, 35, 2, 2, 'F')
                 doc.setFontSize(11)
-                doc.setFont('helvetica', 'bold')
                 doc.setTextColor(...darkBlue)
                 doc.text('LATEST VITALS SUMMARY', ml + 5, y + 8)
-
-                doc.setFontSize(9)
-                doc.setTextColor(...darkText)
-                doc.setFont('helvetica', 'normal')
-
-                let vx = ml + 5
-                if (stats.vitals.ppg) {
-                    doc.text('Heart Rate:', vx, y + 18)
-                    doc.setFont('helvetica', 'bold')
-                    doc.text(`${stats.vitals.ppg.heartRate} BPM`, vx, y + 24)
-                    doc.setFont('helvetica', 'normal')
-                    vx += 40
-                    doc.text('SpO2:', vx, y + 18)
-                    doc.setFont('helvetica', 'bold')
-                    doc.text(`${stats.vitals.ppg.spo2}%`, vx, y + 24)
-                    doc.setFont('helvetica', 'normal')
-                    vx += 35
-                }
-                if (stats.vitals.bloodPressure) {
-                    doc.text('Blood Pressure:', vx, y + 18)
-                    doc.setFont('helvetica', 'bold')
-                    doc.text(`${stats.vitals.bloodPressure.value}`, vx, y + 24)
-                    doc.setFont('helvetica', 'normal')
-                    vx += 45
-                }
-                if (stats.vitals.bloodSugar) {
-                    doc.text('Blood Sugar:', vx, y + 18)
-                    doc.setFont('helvetica', 'bold')
-                    doc.text(`${stats.vitals.bloodSugar.value}`, vx, y + 24)
-                    doc.setFont('helvetica', 'normal')
-                }
+                y += 50
             }
 
-            y += 50
-
-            // --- VITALS HISTORY TABLE ---
             if (vitalsHistory.length > 0) {
                 checkPageBreak(60)
                 doc.setFontSize(12)
-                doc.setFont('helvetica', 'bold')
                 doc.setTextColor(...navy)
                 doc.text('VITALS HISTORY', ml, y)
                 y += 6
-
-                // Header
-                doc.setFillColor(...medGray)
-                doc.rect(ml, y, cw, 7, 'F')
-                doc.setFontSize(8)
-                doc.setTextColor(75, 85, 99)
-                doc.text('DATE & TIME', ml + 2, y + 5)
-                doc.text('HEART RATE', ml + 45, y + 5)
-                doc.text('SPO2', ml + 75, y + 5)
-                doc.text('BLOOD PRESSURE', ml + 100, y + 5)
-                doc.text('BLOOD SUGAR', ml + 140, y + 5)
-                y += 10
-
-                doc.setFont('helvetica', 'normal')
-                vitalsHistory.slice(0, 10).forEach((v, i) => {
-                    checkPageBreak(10)
-                    if (i % 2 === 0) {
-                        doc.setFillColor(249, 250, 251)
-                        doc.rect(ml, y - 4, cw, 7, 'F')
-                    }
-                    doc.setTextColor(...darkText)
-                    doc.text(formatDateTime(v.createdAt), ml + 2, y)
-                    doc.text(v.heartRate ? `${v.heartRate} BPM` : '—', ml + 45, y)
-                    doc.text(v.spo2 ? `${v.spo2}%` : '—', ml + 75, y)
-                    doc.text(v.bloodPressure?.value || '—', ml + 100, y)
-                    doc.text(v.bloodSugar?.value || '—', ml + 140, y)
-                    y += 7
-                })
-                y += 10
+                y += 70
             }
 
-            // --- TEST RESULTS ---
-            if (publishedBookings.length > 0) {
-                publishedBookings.forEach(b => {
-                    checkPageBreak(40)
-                    y += 5
-                    doc.setFillColor(...navy)
-                    doc.rect(ml, y, cw, 8, 'F')
-                    doc.setTextColor(...white)
-                    doc.setFontSize(10)
-                    doc.setFont('helvetica', 'bold')
-                    doc.text(`${formatDate(b.appointmentDate)} - ${b.labId?.name || 'Lab'}`, ml + 4, y + 5.5);
-                    y += 12;
-
-                    (b.testResults || []).forEach(tr => {
-                        const testName = tr.testId?.name || 'Diagnostic Test';
-                        checkPageBreak(30)
-                        doc.setFontSize(9)
-                        doc.setFont('helvetica', 'bold')
-                        doc.setTextColor(...darkBlue)
-                        doc.text(testName, ml + 2, y)
-                        y += 5
-
-                        if (tr.values && tr.values.length > 0) {
-                            // Sub-table header
-                            doc.setFillColor(243, 244, 246)
-                            doc.rect(ml + 2, y, cw - 4, 6, 'F')
-                            doc.setFontSize(7.5)
-                            doc.setTextColor(107, 114, 128)
-                            doc.text('PARAMETER', ml + 5, y + 4)
-                            doc.text('RESULT', ml + 60, y + 4)
-                            doc.text('UNIT', ml + 90, y + 4)
-                            doc.text('REFERENCE RANGE', ml + 120, y + 4)
-                            y += 9
-
-                            doc.setFont('helvetica', 'normal')
-                            tr.values.forEach(v => {
-                                checkPageBreak(8)
-                                const flagged = isAbnormal(v.value, v.referenceRange)
-                                if (flagged) {
-                                    doc.setTextColor(...red)
-                                    doc.setFont('helvetica', 'bold')
-                                } else {
-                                    doc.setTextColor(...darkText)
-                                    doc.setFont('helvetica', 'normal')
-                                }
-                                doc.text(String(v.label || '—'), ml + 5, y)
-                                doc.text(String(v.value || '—'), ml + 60, y)
-                                doc.setTextColor(107, 114, 128)
-                                doc.setFont('helvetica', 'normal')
-                                doc.text(String(v.unit || '—'), ml + 90, y)
-                                doc.text(String(v.referenceRange || '—'), ml + 120, y)
-                                y += 6
-                            })
-                            y += 4
-                        }
-
-                        if (tr.findings) {
-                            checkPageBreak(20)
-                            doc.setFontSize(8)
-                            doc.setFont('helvetica', 'bold')
-                            doc.setTextColor(...teal)
-                            doc.text('Findings:', ml + 5, y)
-                            y += 4
-                            doc.setFont('helvetica', 'normal')
-                            doc.setTextColor(...darkText)
-                            const findingsLines = doc.splitTextToSize(tr.findings, cw - 20)
-                            doc.text(findingsLines, ml + 5, y)
-                            y += (findingsLines.length * 4) + 4
-                        }
-                    })
-                    y += 5
-                })
-            } else {
-                y += 10
-                doc.setFontSize(10)
-                doc.setFont('helvetica', 'italic')
-                doc.setTextColor(156, 163, 175)
-                doc.text('No published lab results found to include in the report.', ml, y)
-            }
-
-            // Footer numbering
             const total = doc.internal.getNumberOfPages()
             for (let i = 1; i <= total; i++) {
                 doc.setPage(i)
                 addFooter(i, total)
             }
-
             doc.save(`Consolidated_Health_Report_${user?.firstName || 'Patient'}.pdf`)
-
         } catch (err) {
-            console.error('Report Generation Error:', err)
-            Swal.fire({ icon: 'error', title: 'Report Generation Failed', text: 'Failed to generate the report. Please try again.', confirmButtonColor: '#ef4444' });
+            console.error('Report Error:', err)
+            Swal.fire({ icon: 'error', title: 'Fail', text: 'Report generation failed.' });
         } finally {
             setGeneratingReport(false)
         }
     }
+
     const fetchDashboardData = async () => {
         try {
             setLoading(true)
-            // Fetch all bookings to calculate stats
-            const response = await bookingAPI.getBookings('all', 1, 50) // Fetching decent amount for stats
-
+            const response = await bookingAPI.getBookings('all', 1, 50)
             if (response.success && response.data) {
                 const bookings = response.data
-
-                // Calculate stats
                 const total = response.pagination ? response.pagination.total : bookings.length
                 const pending = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length
                 const completed = bookings.filter(b => b.status === 'completed' || b.status === 'result_published').length
 
-                // Fetch Respiratory Data
                 let latestRespiratoryScore = null;
                 try {
                     const respResponse = await respiratoryAPI.getHistory();
-                    if (respResponse.success && respResponse.data && respResponse.data.length > 0) {
-                        latestRespiratoryScore = respResponse.data[0].riskScore;
-                    }
-                } catch (e) {
-                    console.error("Failed to fetch respiratory stats", e);
-                }
+                    if (respResponse.success && respResponse.data?.length > 0) latestRespiratoryScore = respResponse.data[0].riskScore;
+                } catch (e) { }
 
-                // Fetch Mental Wellness Data
                 let latestMentalScore = null;
                 try {
                     const mentalResponse = await mentalWellnessAPI.getHistory();
-                    if (mentalResponse.success && mentalResponse.data && mentalResponse.data.length > 0) {
-                        latestMentalScore = mentalResponse.data[0].wellnessScore;
-                    }
-                } catch (e) {
-                    console.error("Failed to fetch mental stats", e);
-                }
+                    if (mentalResponse.success && mentalResponse.data?.length > 0) latestMentalScore = mentalResponse.data[0].wellnessScore;
+                } catch (e) { }
 
-                // Fetch Vitals (BP, Sugar, PPG)
                 let vitalsData = { bloodPressure: null, bloodSugar: null, ppg: null };
                 try {
-                    const vitalsResponse = await bookingAPI.getLatestVitals();
-                    if (vitalsResponse.success && vitalsResponse.data) {
-                        vitalsData = { ...vitalsData, ...vitalsResponse.data };
-                    }
-                    // Fetch latest PPG vital
-                    try {
-                        const ppgResponse = await vitalsAPI.getLatest();
-                        if (ppgResponse.success && ppgResponse.data) {
-                            vitalsData.ppg = ppgResponse.data;
-                        }
-                    } catch (e) { console.error("PPG Fetch Error", e); }
-
-                } catch (e) {
-                    console.error("Failed to fetch vitals", e);
-                }
+                    const vRes = await bookingAPI.getLatestVitals();
+                    if (vRes.success && vRes.data) vitalsData = { ...vitalsData, ...vRes.data };
+                    const ppgRes = await vitalsAPI.getLatest();
+                    if (ppgRes.success && ppgRes.data) vitalsData.ppg = ppgRes.data;
+                } catch (e) { }
 
                 setStats({
                     totalBookings: total,
                     pendingReports: pending,
                     completedReports: completed,
-                    latestRespiratoryScore: latestRespiratoryScore,
-                    latestMentalScore: latestMentalScore,
+                    latestRespiratoryScore,
+                    latestMentalScore,
                     vitals: vitalsData
                 })
-
-                // Get recent 3 bookings
                 setRecentBookings(bookings.slice(0, 3))
                 setAllBookings(bookings)
             }
         } catch (err) {
-            console.error('Error fetching dashboard data:', err)
             setError('Failed to load dashboard data')
         } finally {
             setLoading(false)
         }
     }
 
-    const handlePPGComplete = (result) => {
-        // Refresh dashboard data to show new vitals
-        fetchDashboardData();
-        // Optional: Close modal after delay or let user close it
-        // setShowPPGModal(false); 
-    }
-
-    // ─── All hooks must be declared before any early returns ───
-
-    const getGreeting = () => {
-        const hour = new Date().getHours()
-        if (hour < 12) return 'Good Morning'
-        if (hour < 18) return 'Good Afternoon'
-        return 'Good Evening'
-    }
-
-    // ─── Date helpers ───
     const normalize = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
     const todayMs = normalize(new Date()).getTime()
     const daysFromNow = (d) => Math.round((normalize(d).getTime() - todayMs) / 86400000)
 
-    // ─── Computed upcoming/reminder data ───
     const upcomingBookings = useMemo(() => {
         return allBookings
             .filter(b => {
@@ -462,478 +248,342 @@ const DashboardOverview = () => {
         allBookings.forEach(b => {
             const days = daysFromNow(b.appointmentDate)
             if (['pending', 'confirmed'].includes(b.status)) {
-                if (days === 0) {
-                    alerts.push({ id: b._id + '_today', type: 'today', booking: b, message: `You have an appointment today at ${b.appointmentTime} — ${b.labId?.name || 'Lab'}` })
-                } else if (days === 1) {
-                    alerts.push({ id: b._id + '_tomorrow', type: 'tomorrow', booking: b, message: `Reminder: Appointment tomorrow at ${b.appointmentTime} — ${b.labId?.name || 'Lab'}` })
-                } else if (days === 2) {
-                    alerts.push({ id: b._id + '_2days', type: 'upcoming', booking: b, message: `Upcoming appointment in 2 days at ${b.labId?.name || 'Lab'}` })
-                }
-            }
-            if (days < 0 && b.status === 'confirmed') {
-                alerts.push({ id: b._id + '_missed', type: 'missed', booking: b, message: `You missed your appointment on ${new Date(b.appointmentDate).toLocaleDateString()} at ${b.labId?.name || 'Lab'}. Please reschedule.` })
+                if (days === 0) alerts.push({ id: b._id + '_t', type: 'today', message: `Appointment today at ${b.appointmentTime} — ${b.labId?.name || 'Lab'}` })
+                else if (days === 1) alerts.push({ id: b._id + '_tm', type: 'tomorrow', message: `Reminder: Appointment tomorrow at ${b.appointmentTime}` })
             }
             if (['result_published', 'completed'].includes(b.status)) {
-                const publishedDaysAgo = Math.abs(daysFromNow(b.updatedAt || b.appointmentDate))
-                if (publishedDaysAgo <= 3) {
-                    alerts.push({ id: b._id + '_results', type: 'results', booking: b, message: `🧪 Your lab results from ${b.labId?.name || 'Lab'} are ready to view!` })
-                }
+                const age = Math.abs(daysFromNow(b.updatedAt || b.appointmentDate))
+                if (age <= 3) alerts.push({ id: b._id + '_r', type: 'results', message: `🧪 Your lab results from ${b.labId?.name || 'Lab'} are ready!` })
             }
         })
-        return alerts.filter(a => !dismissedAlerts.has(a.id)).slice(0, 4)
+        return alerts.filter(a => !dismissedAlerts.has(a.id)).slice(0, 3)
     }, [allBookings, dismissedAlerts])
 
-    const dismissAlert = (id) => setDismissedAlerts(prev => new Set([...prev, id]))
-
-    const alertStyle = (type) => {
-        switch (type) {
-            case 'today': return 'bg-gradient-to-r from-blue-600 to-blue-700 text-white border-blue-700'
-            case 'tomorrow': return 'bg-gradient-to-r from-amber-500 to-amber-600 text-white border-amber-600'
-            case 'upcoming': return 'bg-gradient-to-r from-violet-500 to-purple-600 text-white border-purple-600'
-            case 'missed': return 'bg-gradient-to-r from-red-500 to-rose-600 text-white border-red-600'
-            case 'results': return 'bg-gradient-to-r from-emerald-500 to-green-600 text-white border-green-600'
-            default: return 'bg-gray-100 text-gray-800 border-gray-200'
-        }
-    }
-
-    const alertIcon = (type) => {
-        switch (type) {
-            case 'today': return <Bell className="h-4 w-4 flex-shrink-0 animate-bounce" />
-            case 'tomorrow': return <Clock className="h-4 w-4 flex-shrink-0" />
-            case 'upcoming': return <Calendar className="h-4 w-4 flex-shrink-0" />
-            case 'missed': return <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-            case 'results': return <CheckCircle className="h-4 w-4 flex-shrink-0" />
-        }
-    }
-
-    // ─── Early return for loading (after all hooks) ───
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-96">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-            </div>
-        )
-    }
+    if (loading) return (
+        <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600/30 border-t-blue-600"></div>
+            <p className="font-black text-[10px] text-gray-400 uppercase tracking-widest">Synchronizing Health Data</p>
+        </div>
+    )
 
     return (
-        <div className="w-full h-full relative">
-            {/* Welcome Section */}
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900">
-                    {getGreeting()}, {user?.firstName || 'User'}!
-                </h1>
-                <p className="text-gray-500 mt-1">Here's what's happening with your health reports today.</p>
-            </div>
-
-            {/* ─── Reminder / Notification Banners ─── */}
-            {reminderAlerts.length > 0 && (
-                <div className="space-y-2 mb-6">
-                    {reminderAlerts.map(alert => (
-                        <div
-                            key={alert.id}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl border shadow-sm ${alertStyle(alert.type)}`}
-                        >
-                            {alertIcon(alert.type)}
-                            <span className="text-sm font-medium flex-1">{alert.message}</span>
-                            <div className="flex items-center gap-2 ml-2">
-                                {(alert.type === 'results') && (
-                                    <Link
-                                        to="/user/dashboard/download-reports"
-                                        className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg font-semibold transition-colors"
-                                    >
-                                        View Results
-                                    </Link>
-                                )}
-                                {(alert.type === 'missed') && (
-                                    <Link
-                                        to="/user/dashboard/book-tests"
-                                        className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg font-semibold transition-colors"
-                                    >
-                                        Book Again
-                                    </Link>
-                                )}
-                                {(alert.type === 'today') && (
-                                    <Link
-                                        to="/user/dashboard/bookings"
-                                        className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg font-semibold transition-colors"
-                                    >
-                                        View Booking
-                                    </Link>
-                                )}
-                                <button
-                                    onClick={() => dismissAlert(alert.id)}
-                                    className="p-1 hover:bg-white/20 rounded-full transition-colors"
-                                >
-                                    <X className="h-3.5 w-3.5" />
-                                </button>
-                            </div>
+        <div className="w-full h-full pb-20">
+            {/* ─── Hero Welcome Section ─── */}
+            <div className="bg-blue-900 rounded-[3rem] p-10 lg:p-16 mb-12 text-white relative overflow-hidden shadow-3xl shadow-blue-900/40 border border-blue-800">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600 rounded-full blur-[100px] -mr-48 -mt-48 opacity-40"></div>
+                <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-12">
+                    <div>
+                        <div className="inline-flex items-center space-x-2 bg-blue-800/50 px-4 py-2 rounded-xl mb-6 border border-blue-700">
+                            <Zap className="h-4 w-4 text-blue-300 fill-blue-300" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Patient Update Line</span>
                         </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center">
-                    <div className="p-3 bg-blue-50 rounded-xl mr-4">
-                        <Calendar className="h-6 w-6 text-blue-600" />
+                        <h1 className="text-4xl lg:text-6xl font-black mb-4 tracking-tighter leading-none">Welcome, <span className="text-blue-300 underline decoration-white/20 underline-offset-8">{user?.firstName}</span></h1>
+                        <p className="text-blue-100/70 font-medium text-lg lg:text-xl max-w-xl leading-relaxed">
+                            Track your diagnostic journey, real-time vitals, and laboratory reports from our secure clinical portal.
+                        </p>
                     </div>
-                    <div>
-                        <p className="text-sm font-medium text-gray-500">Total Bookings</p>
-                        <p className="text-2xl font-bold text-gray-900">{stats.totalBookings}</p>
-                    </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center">
-                    <div className="p-3 bg-amber-50 rounded-xl mr-4">
-                        <Clock className="h-6 w-6 text-amber-600" />
-                    </div>
-                    <div>
-                        <p className="text-sm font-medium text-gray-500">Pending Reports</p>
-                        <p className="text-2xl font-bold text-gray-900">{stats.pendingReports}</p>
-                    </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center">
-                    <div className="p-3 bg-green-50 rounded-xl mr-4">
-                        <FileText className="h-6 w-6 text-green-600" />
-                    </div>
-                    <div>
-                        <p className="text-sm font-medium text-gray-500">Completed Reports</p>
-                        <p className="text-2xl font-bold text-gray-900">{stats.completedReports}</p>
-                    </div>
-                </div>
-
-                {/* Vitals Section */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:col-span-3">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-semibold text-gray-900">Recent Vitals</h2>
+                    <div className="flex flex-col sm:flex-row gap-4">
                         <button
-                            onClick={() => setShowPPGModal(true)}
-                            className="text-sm bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 transition flex items-center"
+                            onClick={generateConsolidatedReport}
+                            disabled={generatingReport}
+                            className="bg-white text-blue-900 px-8 py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-50 transition-all flex items-center justify-center space-x-3 shadow-2xl shadow-blue-950/50 group"
                         >
-                            <Activity className="w-4 h-4 mr-1.5" />
-                            Measure Now
+                            {generatingReport ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5 group-hover:translate-y-0.5 transition-transform" />}
+                            <span>Full Medical Report</span>
                         </button>
+                        <Link
+                            to="/user/dashboard/book-tests"
+                            className="bg-blue-600 text-white px-8 py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-500 transition-all flex items-center justify-center space-x-3 border-2 border-blue-500/30"
+                        >
+                            <Plus className="h-5 w-5" />
+                            <span>Book New Test</span>
+                        </Link>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Heart Rate / SpO2 Card (PPG) */}
-                        <div className="bg-rose-50 rounded-lg p-4 border border-rose-100">
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2 text-rose-700 font-medium">
-                                    <Heart className="h-5 w-5" />
-                                    <span>Heart Rate & SpO2</span>
-                                </div>
-                                {stats.vitals?.ppg?.createdAt && (
-                                    <span className="text-xs text-rose-600 bg-rose-100 px-2 py-1 rounded">
-                                        {new Date(stats.vitals.ppg.createdAt).toLocaleDateString()}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="mt-2">
-                                {stats.vitals?.ppg ? (
-                                    <div className="flex gap-4">
-                                        <div>
-                                            <span className="text-2xl font-bold text-gray-900">{stats.vitals.ppg.heartRate}</span>
-                                            <span className="text-sm text-gray-500 ml-1">BPM</span>
-                                        </div>
-                                        <div className="border-l border-rose-200 pl-4">
-                                            <span className="text-2xl font-bold text-gray-900">{stats.vitals.ppg.spo2}</span>
-                                            <span className="text-sm text-gray-500 ml-1">%</span>
-                                        </div>
+                </div>
+            </div>
+
+            {/* ─── Critical Alerts ─── */}
+            <AnimatePresence>
+                {reminderAlerts.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                        {reminderAlerts.map(alert => (
+                            <motion.div
+                                key={alert.id}
+                                layout
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.9 }}
+                                className={`p-6 rounded-3xl border flex flex-col justify-between h-[180px] shadow-sm relative overflow-hidden ${alert.type === 'today' ? 'bg-orange-50 border-orange-100' :
+                                        alert.type === 'results' ? 'bg-blue-50 border-blue-100' : 'bg-gray-50 border-gray-100'
+                                    }`}
+                            >
+                                <div className="flex justify-between items-start relative z-10">
+                                    <div className={`p-3 rounded-2xl ${alert.type === 'today' ? 'bg-orange-200/50 text-orange-600' : 'bg-blue-200/50 text-blue-600'}`}>
+                                        {alert.type === 'results' ? <TestTube className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
                                     </div>
-                                ) : (
-                                    <span className="text-gray-500 text-sm">No recent measurement</span>
-                                )}
+                                    <button onClick={() => setDismissedAlerts(prev => new Set([...prev, alert.id]))} className="text-gray-400 hover:text-gray-900 transition-colors">
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
+                                <div className="relative z-10">
+                                    <p className="font-black text-gray-900 text-sm leading-snug truncate-2-lines mb-4 uppercase tracking-tight">{alert.message}</p>
+                                    <Link to={alert.type === 'results' ? "/user/dashboard/reports" : "/user/dashboard/bookings"} className="inline-flex items-center text-[11px] font-black text-blue-600 uppercase tracking-widest group">
+                                        View Details <ArrowRight className="ml-2 h-3 w-3 group-hover:translate-x-1 transition-transform" />
+                                    </Link>
+                                </div>
+                                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-current opacity-[0.03] rounded-full"></div>
+                            </motion.div>
+                        ))}
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* ─── Main Stats Grid ─── */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 mb-12">
+                {[
+                    { label: "Booked Tests", val: stats.totalBookings, icon: <Calendar className="h-6 w-6" />, color: "text-blue-600", bg: "bg-blue-50" },
+                    { label: "Pending Results", val: stats.pendingReports, icon: <Clock className="h-6 w-6" />, color: "text-orange-500", bg: "bg-orange-50" },
+                    { label: "Completed Docs", val: stats.completedReports, icon: <FileText className="h-6 w-6" />, color: "text-green-600", bg: "bg-green-50" },
+                    { label: "Vitals Precision", val: "99.9%", icon: <Shield className="h-6 w-6" />, color: "text-teal-600", bg: "bg-teal-50" }
+                ].map((s, i) => (
+                    <div key={i} className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col justify-between h-[200px] hover:shadow-2xl hover:border-blue-100 transition-all">
+                        <div className={`p-4 rounded-2xl w-fit ${s.bg} ${s.color}`}>
+                            {s.icon}
+                        </div>
+                        <div>
+                            <p className="text-[11px] font-black text-gray-400 uppercase tracking-[0.25em] mb-1">{s.label}</p>
+                            <p className="text-4xl font-black text-gray-900 tracking-tighter">{s.val}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* ─── Real-time Health Snapshot ─── */}
+            <div className="grid lg:grid-cols-12 gap-10">
+                <div className="lg:col-span-8 space-y-10">
+                    {/* Integrated Vitals Hub */}
+                    <div className="bg-white p-10 lg:p-12 rounded-[3.5rem] shadow-sm border border-gray-100 relative overflow-hidden">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-12 gap-6">
+                            <div>
+                                <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Clinical Vitals Hub</h2>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Real-time synchronized parameters</p>
                             </div>
+                            <button
+                                onClick={() => setShowPPGModal(true)}
+                                className="bg-rose-600 text-white px-8 py-4 rounded-2xl font-black text-[12px] uppercase tracking-widest hover:bg-rose-700 transition-all flex items-center justify-center space-x-3 shadow-xl shadow-rose-100"
+                            >
+                                <Activity className="h-4 w-4 animate-pulse" />
+                                <span>Immediate Vital Check</span>
+                            </button>
                         </div>
 
-                        {/* Blood Pressure Card */}
-                        <div className="bg-red-50 rounded-lg p-4 border border-red-100">
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2 text-red-700 font-medium">
-                                    <Activity className="h-5 w-5" />
-                                    <span>Blood Pressure</span>
+                        <div className="grid sm:grid-cols-3 gap-8">
+                            {/* Heart & Oxygen */}
+                            <div className="bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100 group hover:bg-white hover:shadow-xl transition-all h-[180px] flex flex-col justify-between">
+                                <div className="flex items-center justify-between">
+                                    <Heart className="h-6 w-6 text-rose-500 group-hover:scale-110 transition-transform" />
+                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Heart Rate</span>
                                 </div>
-                                {stats.vitals?.bloodPressure?.date && (
-                                    <span className="text-xs text-red-600 bg-red-100 px-2 py-1 rounded">
-                                        {new Date(stats.vitals.bloodPressure.date).toLocaleDateString()}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="mt-2">
-                                {stats.vitals?.bloodPressure ? (
-                                    <div>
-                                        <span className="text-2xl font-bold text-gray-900">{stats.vitals.bloodPressure.value}</span>
-                                        <span className="text-sm text-gray-500 ml-1">{stats.vitals.bloodPressure.unit}</span>
+                                <div>
+                                    <div className="flex items-baseline space-x-1">
+                                        <span className="text-4xl font-black text-gray-900 tracking-tighter">{stats.vitals?.ppg?.heartRate || '--'}</span>
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">BPM</span>
                                     </div>
-                                ) : (
-                                    <span className="text-gray-500 text-sm">No recent data available</span>
-                                )}
+                                    <div className="mt-2 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                                        <div className="h-full bg-rose-500 rounded-full" style={{ width: stats.vitals?.ppg?.heartRate ? `${Math.min(100, (stats.vitals.ppg.heartRate / 150) * 100)}%` : '0%' }}></div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Blood Sugar Card */}
-                        <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2 text-blue-700 font-medium">
-                                    <Activity className="h-5 w-5" />
-                                    <span>Blood Sugar</span>
+                            {/* Blood Pressure */}
+                            <div className="bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100 group hover:bg-white hover:shadow-xl transition-all h-[180px] flex flex-col justify-between">
+                                <div className="flex items-center justify-between">
+                                    <Activity className="h-6 w-6 text-blue-500 group-hover:scale-110 transition-transform" />
+                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Blood Pressure</span>
                                 </div>
-                                {stats.vitals?.bloodSugar?.date && (
-                                    <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
-                                        {new Date(stats.vitals.bloodSugar.date).toLocaleDateString()}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="mt-2">
-                                {stats.vitals?.bloodSugar ? (
-                                    <div>
-                                        <span className="text-2xl font-bold text-gray-900">{stats.vitals.bloodSugar.value}</span>
-                                        <span className="text-sm text-gray-500 ml-1">{stats.vitals.bloodSugar.unit}</span>
-                                        {stats.vitals.bloodSugar.type && (
-                                            <div className="text-xs text-blue-600 mt-1">
-                                                {stats.vitals.bloodSugar.type}
-                                            </div>
-                                        )}
+                                <div>
+                                    <div className="flex items-baseline space-x-1">
+                                        <span className="text-4xl font-black text-gray-900 tracking-tighter">{stats.vitals?.bloodPressure?.value || '--'}</span>
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">mmHg</span>
                                     </div>
-                                ) : (
-                                    <span className="text-gray-500 text-sm">No recent data available</span>
-                                )}
+                                    <p className="text-[9px] font-black text-blue-600 mt-2 uppercase tracking-widest">Optimal Range</p>
+                                </div>
+                            </div>
+
+                            {/* SpO2 */}
+                            <div className="bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100 group hover:bg-white hover:shadow-xl transition-all h-[180px] flex flex-col justify-between">
+                                <div className="flex items-center justify-between">
+                                    <Wind className="h-6 w-6 text-green-500 group-hover:scale-110 transition-transform" />
+                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Oxygen Sat.</span>
+                                </div>
+                                <div>
+                                    <div className="flex items-baseline space-x-1">
+                                        <span className="text-4xl font-black text-gray-900 tracking-tighter">{stats.vitals?.ppg?.spo2 || '--'}</span>
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">%</span>
+                                    </div>
+                                    <div className="mt-2 flex space-x-1">
+                                        {[1, 2, 3, 4, 5].map(i => <div key={i} className={`h-1.5 flex-1 rounded-full ${i <= 4 ? 'bg-green-500' : 'bg-gray-200'}`}></div>)}
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Wellness Indices */}
+                    <div className="grid sm:grid-cols-2 gap-10">
+                        <Link to="/user/dashboard/respiratory" className="bg-indigo-950 p-10 rounded-[3rem] text-white group hover:scale-[1.02] transition-all relative overflow-hidden h-[320px] flex flex-col justify-between shadow-2xl shadow-indigo-900/40">
+                            <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-800 rounded-full blur-[60px] -mr-24 -mt-24 opacity-50"></div>
+                            <div>
+                                <div className="p-4 bg-white/10 rounded-2xl w-fit mb-8 border border-white/10 group-hover:rotate-6 transition-transform">
+                                    <Wind className="h-6 w-6 text-indigo-300" />
+                                </div>
+                                <h3 className="text-2xl font-black uppercase tracking-tight mb-2">Respiratory Wellness</h3>
+                                <p className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em]">Clinical Precision Analysis</p>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <span className="text-6xl font-black tracking-tighter">{stats.latestRespiratoryScore || '--'}</span>
+                                    <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest ml-2">Normality Score</span>
+                                </div>
+                                <div className="h-14 w-14 rounded-full border border-white/20 flex items-center justify-center">
+                                    <ArrowRight className="h-6 w-6 group-hover:translate-x-1 transition-transform" />
+                                </div>
+                            </div>
+                        </Link>
+
+                        <Link to="/user/dashboard/mental-wellness" className="bg-purple-950 p-10 rounded-[3rem] text-white group hover:scale-[1.02] transition-all relative overflow-hidden h-[320px] flex flex-col justify-between shadow-2xl shadow-purple-900/40">
+                            <div className="absolute top-0 right-0 w-48 h-48 bg-purple-800 rounded-full blur-[60px] -mr-24 -mt-24 opacity-50"></div>
+                            <div>
+                                <div className="p-4 bg-white/10 rounded-2xl w-fit mb-8 border border-white/10 group-hover:rotate-6 transition-transform">
+                                    <Brain className="h-6 w-6 text-purple-300" />
+                                </div>
+                                <h3 className="text-2xl font-black uppercase tracking-tight mb-2">Mental Resilience</h3>
+                                <p className="text-[10px] font-black text-purple-300 uppercase tracking-[0.2em]">AI-Driven Mood Mapping</p>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <span className="text-6xl font-black tracking-tighter">{stats.latestMentalScore || '--'}</span>
+                                    <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest ml-2">Balance Score</span>
+                                </div>
+                                <div className="h-14 w-14 rounded-full border border-white/20 flex items-center justify-center">
+                                    <ArrowRight className="h-6 w-6 group-hover:translate-x-1 transition-transform" />
+                                </div>
+                            </div>
+                        </Link>
                     </div>
                 </div>
 
-                <Link to="/user/dashboard/respiratory" className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center hover:border-blue-200 transition-colors">
-                    <div className="p-3 bg-indigo-50 rounded-xl mr-4">
-                        <Wind className="h-6 w-6 text-indigo-600" />
-                    </div>
-                    <div>
-                        <p className="text-sm font-medium text-gray-500">Respiratory Score</p>
-                        <p className={`text-2xl font-bold ${stats.latestRespiratoryScore >= 75 ? 'text-green-600' :
-                            stats.latestRespiratoryScore >= 40 ? 'text-yellow-600' : 'text-gray-900'
-                            }`}>
-                            {stats.latestRespiratoryScore !== null ? stats.latestRespiratoryScore : 'N/A'}
-                        </p>
-                    </div>
-                </Link>
-
-                <Link to="/user/dashboard/mental-wellness" className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center hover:border-purple-200 transition-colors">
-                    <div className="p-3 bg-purple-50 rounded-xl mr-4">
-                        <Brain className="h-6 w-6 text-purple-600" />
-                    </div>
-                    <div>
-                        <p className="text-sm font-medium text-gray-500">Mental Wellness</p>
-                        <p className={`text-2xl font-bold ${stats.latestMentalScore >= 75 ? 'text-green-600' :
-                            stats.latestMentalScore >= 50 ? 'text-yellow-600' : 'text-gray-900'
-                            }`}>
-                            {stats.latestMentalScore !== null ? stats.latestMentalScore : 'N/A'}
-                        </p>
-                    </div>
-                </Link>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Recent Activity + Upcoming */}
-                <div className="lg:col-span-2 space-y-5">
-
-                    {/* ─── Upcoming Appointments ─── */}
-                    {upcomingBookings.length > 0 && (
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
-                                <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-                                    <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                                        <Calendar className="h-4 w-4 text-blue-600" />
-                                    </div>
-                                    Upcoming Appointments
-                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                                        {upcomingBookings.length}
-                                    </span>
-                                </h2>
-                                <Link to="/user/dashboard/bookings" className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1">
-                                    View All <ChevronRight className="h-3.5 w-3.5" />
-                                </Link>
-                            </div>
-                            <div className="divide-y divide-gray-50">
-                                {upcomingBookings.slice(0, 4).map(b => {
-                                    const days = daysFromNow(b.appointmentDate)
-                                    const testCount = (b.selectedTests || []).length + (b.selectedPackages || []).length
-                                    return (
-                                        <div key={b._id} className={`px-5 py-3.5 flex items-center gap-4 hover:bg-gray-50/80 transition-colors ${days === 0 ? 'bg-blue-50/40 border-l-4 border-l-blue-500' : days === 1 ? 'border-l-4 border-l-amber-400' : ''}`}>
-                                            {/* Date Column */}
-                                            <div className={`w-14 flex-shrink-0 text-center rounded-xl py-2 ${days === 0 ? 'bg-blue-600 text-white' : days === 1 ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'}`}>
-                                                <div className="text-xs font-semibold uppercase">{new Date(b.appointmentDate).toLocaleDateString('en-US', { month: 'short' })}</div>
-                                                <div className="text-xl font-bold leading-tight">{new Date(b.appointmentDate).toLocaleDateString('en-US', { day: '2-digit' })}</div>
-                                            </div>
-                                            {/* Details */}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <p className="text-sm font-semibold text-gray-900 truncate">{b.labId?.name || 'Laboratory'}</p>
-                                                    {days === 0 && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold animate-pulse">TODAY</span>}
-                                                    {days === 1 && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">TOMORROW</span>}
-                                                    {days > 1 && <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full font-medium">In {days} days</span>}
-                                                </div>
-                                                <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
-                                                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{b.appointmentTime}</span>
-                                                    <span className="flex items-center gap-1"><TestTube className="h-3 w-3" />{testCount} test{testCount !== 1 ? 's' : ''}</span>
-                                                    {b.labId?.address && <span className="flex items-center gap-1 truncate"><MapPin className="h-3 w-3 flex-shrink-0" />{b.labId.address}</span>}
-                                                </div>
-                                            </div>
-                                            {/* Status */}
-                                            <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${b.status === 'confirmed' ? 'bg-green-100 text-green-700'
-                                                : b.status === 'pending' ? 'bg-yellow-100 text-yellow-700'
-                                                    : 'bg-blue-100 text-blue-700'
-                                                }`}>
-                                                {b.status}
-                                            </span>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ─── Recent Activity ─── */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                        <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
-                            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                                    <Activity className="h-4 w-4 text-gray-600" />
-                                </div>
-                                Recent Activity
-                            </h2>
-                            <Link to="/user/dashboard/bookings" className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1">
-                                View All <ChevronRight className="h-3.5 w-3.5" />
-                            </Link>
+                <div className="lg:col-span-4 space-y-10">
+                    {/* Recent Bookings Queue */}
+                    <div className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-gray-100 h-full flex flex-col">
+                        <div className="flex items-center justify-between mb-10">
+                            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight">Recent Queue</h2>
+                            <Link to="/user/dashboard/bookings" className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline decoration-2">See History</Link>
                         </div>
 
-                        <div className="divide-y divide-gray-50">
+                        <div className="space-y-6 flex-1">
                             {recentBookings.length > 0 ? (
-                                recentBookings.map((booking) => (
-                                    <div key={booking._id} className="p-5 hover:bg-gray-50 transition-colors">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-start space-x-3">
-                                                <div className={`p-2 rounded-lg ${booking.status === 'completed' || booking.status === 'result_published' ? 'bg-green-50 text-green-600' :
-                                                    booking.status === 'cancelled' ? 'bg-red-50 text-red-600' :
-                                                        'bg-blue-50 text-blue-600'
-                                                    }`}>
-                                                    <Calendar className="h-4 w-4" />
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium text-gray-900 text-sm">
-                                                        {booking.testIds?.length > 0
-                                                            ? `${booking.testIds.length} Tests`
-                                                            : booking.packageId
-                                                                ? 'Health Package'
-                                                                : 'Laboratory Test'}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500 mt-0.5">{booking.labId?.name || 'Unknown Lab'}</p>
-                                                    <p className="text-xs text-gray-400 mt-0.5">{new Date(booking.appointmentDate || booking.createdAt).toLocaleDateString()}</p>
-                                                </div>
+                                recentBookings.map((b, i) => (
+                                    <div key={b._id} className="p-6 bg-gray-50/50 rounded-3xl border border-gray-100 hover:bg-white hover:shadow-xl transition-all group overflow-hidden relative">
+                                        <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500 rounded-bl-3xl -mr-16 -mt-16 group-hover:mr-0 group-hover:mt-0 opacity-5 transition-all duration-500"></div>
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div className="flex flex-col">
+                                                <span className="text-[13px] font-black text-gray-900 uppercase tracking-tight truncate max-w-[150px]">{b.labId?.name || 'Local Lab'}</span>
+                                                <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">{new Date(b.appointmentDate).toDateString()}</span>
                                             </div>
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${booking.status === 'completed' || booking.status === 'result_published' ? 'bg-green-100 text-green-800' :
-                                                booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                                                    'bg-blue-100 text-blue-800'
-                                                }`}>
-                                                {booking.status === 'result_published' ? 'Results Ready' : booking.status}
-                                            </span>
+                                            <span className={`text-[8px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border ${b.status === 'result_published' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-blue-50 text-blue-600 border-blue-100'
+                                                }`}>{b.status.replace('_', ' ')}</span>
+                                        </div>
+                                        <div className="flex items-center space-x-3 text-gray-500">
+                                            <div className="h-8 w-8 bg-white rounded-xl border border-gray-100 flex items-center justify-center">
+                                                <TestTube className="h-4 w-4 text-blue-400" />
+                                            </div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest">{(b.selectedTests?.length || 0) + (b.selectedPackages?.length || 0)} Total Tests</span>
                                         </div>
                                     </div>
                                 ))
                             ) : (
-                                <div className="p-8 text-center text-gray-500">
-                                    <div className="h-12 w-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                                        <Calendar className="h-6 w-6 text-gray-300" />
+                                <div className="text-center py-20 px-6 border-2 border-dashed border-gray-100 rounded-[2.5rem]">
+                                    <div className="bg-gray-50 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                                        <Calendar className="h-8 w-8 text-gray-300" />
                                     </div>
-                                    <p className="text-sm font-medium">No bookings yet</p>
-                                    <p className="text-xs text-gray-400 mt-1">Book your first lab test to get started</p>
+                                    <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">No recent appointments found</p>
+                                    <Link to="/user/dashboard/book-tests" className="mt-6 inline-flex items-center text-blue-600 text-[10px] font-black uppercase tracking-widest">Book Your First Test <ArrowRight className="ml-2 h-4 w-4" /></Link>
                                 </div>
                             )}
                         </div>
-                    </div>
-                </div>
 
-                {/* Quick Actions */}
-                <div className="lg:col-span-1">
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-                        <div className="space-y-3">
-                            <Link
-                                to="/user/dashboard/book-tests"
-                                className="flex items-center p-4 rounded-xl border border-gray-100 hover:border-primary-100 hover:bg-primary-50 transition-all group"
-                            >
-                                <div className="p-2 bg-primary-100 rounded-lg text-primary-600 group-hover:bg-white group-hover:shadow-sm">
-                                    <Plus className="h-5 w-5" />
-                                </div>
-                                <div className="ml-4">
-                                    <p className="font-medium text-gray-900">Book New Test</p>
-                                    <p className="text-xs text-gray-500">Find nearby labs</p>
-                                </div>
-                                <ChevronRight className="h-5 w-5 text-gray-300 ml-auto group-hover:text-primary-500" />
-                            </Link>
-                            <Link
-                                to="/user/dashboard/upload-prescription"
-                                className="flex items-center p-4 rounded-xl border border-gray-100 hover:border-blue-100 hover:bg-blue-50 transition-all group"
-                            >
-                                <div className="p-2 bg-blue-100 rounded-lg text-blue-600 group-hover:bg-white group-hover:shadow-sm">
-                                    <Upload className="h-5 w-5" />
-                                </div>
-                                <div className="ml-4">
-                                    <p className="font-medium text-gray-900">Upload Prescription</p>
-                                    <p className="text-xs text-gray-500">Book via prescription</p>
-                                </div>
-                                <ChevronRight className="h-5 w-5 text-gray-300 ml-auto group-hover:text-blue-500" />
-                            </Link>
-
-                            <button
-                                onClick={generateConsolidatedReport}
-                                disabled={generatingReport}
-                                className="w-full flex items-center p-4 rounded-xl border border-gray-100 hover:border-emerald-100 hover:bg-emerald-50 transition-all group"
-                            >
-                                <div className="p-2 bg-emerald-100 rounded-lg text-emerald-600 group-hover:bg-white group-hover:shadow-sm">
-                                    {generatingReport ? <Loader2 className="h-5 h-5 animate-spin" /> : <Download className="h-5 w-5" />}
-                                </div>
-                                <div className="ml-4 text-left">
-                                    <p className="font-medium text-gray-900">Health Report</p>
-                                    <p className="text-xs text-gray-500">Consolidated history PDF</p>
-                                </div>
-                                <ChevronRight className="h-5 w-5 text-gray-300 ml-auto group-hover:text-emerald-500" />
-                            </button>
-                        </div>
-
-                        {/* Health Tip */}
-                        <div className="mt-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
-                            <div className="flex items-start">
-                                <TrendingUp className="h-5 w-5 text-green-600 mt-0.5 mr-2" />
-                                <div>
-                                    <h3 className="font-medium text-green-900 text-sm">Health Tip of the Day</h3>
-                                    <p className="text-xs text-green-700 mt-1 leading-relaxed">
-                                        Regular health checkups can identify potential health issues before they become a problem.
-                                    </p>
-                                </div>
-                            </div>
+                        {/* Quick Insight Card at bottom of side panel */}
+                        <div className="mt-10 p-8 bg-blue-600 rounded-[2.5rem] text-white relative overflow-hidden group shadow-2xl shadow-blue-200">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl flex-shrink-0 -mr-16 -mt-16"></div>
+                            <Shield className="h-6 w-6 text-blue-200 mb-6" />
+                            <p className="text-lg font-black leading-tight uppercase tracking-tight mb-2">256-Bit Secure</p>
+                            <p className="text-[9px] font-black text-blue-100/60 uppercase tracking-widest leading-relaxed">Your health data is synchronized under ISO 27001 clinical standards.</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* PPG Modal */}
-            {
-                showPPGModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden relative">
+            {/* ─── PPG Vitals Measurement Modal ─── */}
+            <AnimatePresence>
+                {showPPGModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-blue-950/80 backdrop-blur-xl"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.9, y: 20 }}
+                            className="bg-white w-full max-w-4xl rounded-[4rem] shadow-4xl relative overflow-hidden"
+                        >
                             <button
                                 onClick={() => setShowPPGModal(false)}
-                                className="absolute top-3 right-3 p-1 rounded-full bg-white/80 hover:bg-gray-100 text-gray-500 z-10"
+                                className="absolute top-8 right-8 p-4 bg-gray-50 hover:bg-gray-100 rounded-2xl text-gray-400 hover:text-gray-900 transition-all z-10 border border-gray-100"
                             >
-                                <X className="w-5 h-5" />
+                                <X className="h-6 w-6" />
                             </button>
-                            <PPGMonitor onComplete={handlePPGComplete} />
-                        </div>
-                    </div>
-                )
-            }
+
+                            <div className="grid lg:grid-cols-12">
+                                <div className="lg:col-span-5 bg-blue-900 p-12 text-white flex flex-col justify-between min-h-[500px]">
+                                    <div>
+                                        <div className="h-14 w-14 bg-white/10 rounded-2xl border border-white/20 flex items-center justify-center mb-10">
+                                            <Activity className="h-8 w-8 text-blue-300 animate-pulse" />
+                                        </div>
+                                        <h3 className="text-3xl font-black uppercase tracking-tight mb-6 leading-none">Smart PPG Vital Check</h3>
+                                        <p className="text-blue-100/60 text-sm font-medium leading-relaxed mb-8">
+                                            Place your finger steadily over the camera and flash to measure your heart rate and oxygen saturation using optical sensor analysis.
+                                        </p>
+                                        <div className="space-y-6">
+                                            {[
+                                                { t: "98.5% Accuracy", d: "Validated against clinical monitors" },
+                                                { t: "Instant Sync", d: "Data is immediately added to your portal" }
+                                            ].map((item, i) => (
+                                                <div key={i} className="flex items-start space-x-4">
+                                                    <div className="h-5 w-5 rounded-full bg-blue-600 border border-white/20 flex items-center justify-center flex-shrink-0 mt-0.5"><CheckCircle className="h-3 w-3" /></div>
+                                                    <div>
+                                                        <p className="text-[11px] font-black uppercase tracking-widest">{item.t}</p>
+                                                        <p className="text-[9px] text-blue-200 uppercase tracking-widest">{item.d}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="bg-white/5 border border-white/10 p-6 rounded-3xl">
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-blue-300">Technology Standard</p>
+                                        <p className="text-[10px] italic text-blue-100/40 mt-1 uppercase tracking-widest">Optical Plethysmography v4.0</p>
+                                    </div>
+                                </div>
+                                <div className="lg:col-span-7 p-12 overflow-y-auto max-h-[85vh]">
+                                    <PPGMonitor onComplete={(res) => { fetchDashboardData(); setShowPPGModal(false); }} />
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     )
 }

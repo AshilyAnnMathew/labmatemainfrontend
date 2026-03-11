@@ -2,18 +2,25 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     TestTube, Calendar, Clock, User, Phone, Mail, CreditCard,
     CheckCircle, AlertCircle, FileText, AlertTriangle, ChevronRight,
-    Activity, Users, Flame, Eye, ArrowUpRight, TrendingUp
+    Activity, Users, Flame, Eye, ArrowUpRight, TrendingUp, Search,
+    Filter, MoreHorizontal, Download, Printer
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import Swal from 'sweetalert2';
 import api from '../services/api';
 import StatusBadge from '../components/common/StatusBadge';
+import moment from 'moment';
 
 const AssignedOverview = ({ assignedLab }) => {
     const [activeTab, setActiveTab] = useState('active');
     const [loading, setLoading] = useState(true);
     const [bookings, setBookings] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedPatient, setSelectedPatient] = useState(null);
+    const [patientDetails, setPatientDetails] = useState(null);
+    const [patientHistory, setPatientHistory] = useState([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
 
     useEffect(() => {
         fetchBookings();
@@ -26,13 +33,16 @@ const AssignedOverview = ({ assignedLab }) => {
             let statusParams = [];
             switch (activeTab) {
                 case 'active':
-                    statusParams = ['pending', 'confirmed'];
+                    statusParams = ['pending', 'confirmed', 'arrived'];
                     break;
-                case 'processing':
-                    statusParams = ['sample_collected', 'processing', 'in_progress'];
+                case 'diagnostics':
+                    statusParams = ['sample_collected', 'partially_completed', 'testing'];
                     break;
-                case 'completed':
-                    statusParams = ['result_published', 'completed'];
+                case 'verification':
+                    statusParams = ['processing'];
+                    break;
+                case 'archive':
+                    statusParams = ['completed', 'result_published'];
                     break;
                 default:
                     statusParams = ['pending'];
@@ -82,9 +92,19 @@ const AssignedOverview = ({ assignedLab }) => {
     const stats = useMemo(() => {
         const todayBookings = bookings.filter(b => isToday(b.appointmentDate));
         const upcomingBookings = bookings.filter(b => isFuture(b.appointmentDate));
-        const expiredBookings = bookings.filter(b => isPast(b.appointmentDate) && b.status === 'confirmed');
-        const pendingPayments = bookings.filter(b => b.paymentStatus === 'pending' && b.paymentMethod === 'pay_later');
-        return { todayBookings, upcomingBookings, expiredBookings, pendingPayments };
+        const arrived = bookings.filter(b => b.status === 'arrived');
+        const samplesCollected = bookings.filter(b => b.status === 'sample_collected');
+        const inTesting = bookings.filter(b => b.status === 'testing' || b.status === 'partially_completed');
+        const completed = bookings.filter(b => b.status === 'completed' || b.status === 'result_published');
+
+        return {
+            todayBookings,
+            upcomingBookings,
+            arrived: arrived.length,
+            samplesCollected: samplesCollected.length,
+            inTesting: inTesting.length,
+            completedToday: completed.filter(b => isToday(b.updatedAt)).length
+        };
     }, [bookings]);
 
     // ─── Upcoming Activities (next 7 days) ───
@@ -105,235 +125,324 @@ const AssignedOverview = ({ assignedLab }) => {
             b.userId?.firstName?.toLowerCase().includes(s) ||
             b.userId?.lastName?.toLowerCase().includes(s) ||
             b.userId?.email?.toLowerCase().includes(s) ||
+            b.userId?.phone?.toLowerCase().includes(s) ||
+            b.sampleId?.toLowerCase().includes(s) ||
             b._id?.toLowerCase().includes(s)
         );
     });
 
     // ─── Action handlers ───
     const handleStatusUpdate = async (bookingId, newStatus) => {
+        const title = newStatus === 'confirmed' ? 'Authorize Sync?' : newStatus === 'arrived' ? 'Confirm Arrival?' : 'Confirm Operation';
+        const text = newStatus === 'confirmed' ? 'Authorize this clinical record?' : newStatus === 'arrived' ? 'Patient has arrived at node?' : 'Synchronize status?';
+
         const result = await Swal.fire({
-            title: 'Confirm Booking?',
-            text: 'This will mark the booking as confirmed and notify the patient.',
+            title,
+            text,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonColor: '#3b82f6',
-            cancelButtonColor: '#6b7280',
-            confirmButtonText: 'Yes, Confirm',
+            confirmButtonColor: '#0f172a',
+            cancelButtonColor: '#cbd5e1',
+            confirmButtonText: 'Proceed',
         });
         if (!result.isConfirmed) return;
         try {
             await api.bookingAPI.updateBookingStatus(bookingId, { status: newStatus });
             Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true })
-                .fire({ icon: 'success', title: 'Booking confirmed!' });
+                .fire({ icon: 'success', title: 'Status Synchronized' });
             fetchBookings();
         } catch {
-            Swal.fire('Error', 'Failed to update booking status.', 'error');
+            Swal.fire('Error', 'Link Failure: Failed to update status.', 'error');
+        }
+    };
+
+    const handleConfirmPayment = async (bookingId) => {
+        const result = await Swal.fire({
+            title: 'Confirm Payment?',
+            text: 'Acknowledge receipt of funds for this record?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#10b981',
+            cancelButtonColor: '#cbd5e1',
+            confirmButtonText: 'Confirm Received'
+        });
+        if (!result.isConfirmed) return;
+        try {
+            await api.bookingAPI.confirmOfflinePayment(bookingId);
+            Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true })
+                .fire({ icon: 'success', title: 'Payment Settled' });
+            fetchBookings();
+        } catch {
+            Swal.fire('Error', 'Link Failure: Failed to update payment status.', 'error');
+        }
+    };
+
+    const handleViewHistory = async (userId) => {
+        try {
+            setLoadingHistory(true);
+            setSelectedPatient(userId);
+            const res = await api.bookingAPI.getPatientHistory(userId);
+            if (res.success) {
+                const data = res.data;
+                // Backend now returns { patient, bookings, vitals }
+                setPatientDetails(data?.patient || null);
+                setPatientHistory(data?.bookings || (Array.isArray(data) ? data : []));
+            }
+            setLoadingHistory(false);
+        } catch (err) {
+            console.error('Error fetching history:', err);
+            setLoadingHistory(false);
         }
     };
 
     const handleCollectSample = async (booking) => {
         if (isFuture(booking.appointmentDate)) {
-            Swal.fire({ icon: 'warning', title: 'Too Early', text: `Appointment is on ${new Date(booking.appointmentDate).toLocaleDateString()}. Collect on appointment day.` });
+            Swal.fire({ icon: 'warning', title: 'Phase Conflict', text: `Sample window opens on ${new Date(booking.appointmentDate).toLocaleDateString()}.` });
             return;
         }
         if (isPast(booking.appointmentDate)) {
-            Swal.fire({ icon: 'error', title: 'Appointment Expired', text: `Appointment was on ${new Date(booking.appointmentDate).toLocaleDateString()}. Marking as "No Show".` });
+            Swal.fire({ icon: 'error', title: 'Time Lapse Detected', text: `Appointment expired on ${new Date(booking.appointmentDate).toLocaleDateString()}.` });
             try { await api.localAdminAPI.collectSample(booking._id); } catch { }
             fetchBookings();
             return;
         }
-        const result = await Swal.fire({
-            title: 'Collect Sample?',
-            html: `<div class="text-left text-sm text-gray-600">
-        <p><strong>Patient:</strong> ${booking.userId?.firstName} ${booking.userId?.lastName}</p>
-        <p><strong>Tests:</strong> ${(booking.selectedTests || []).length + (booking.selectedPackages || []).length} item(s)</p>
-        <p class="mt-2 text-amber-600">⚠️ Verify patient identity before proceeding.</p></div>`,
-            icon: 'info',
+        const { value: formValues } = await Swal.fire({
+            title: 'Initiate Collection?',
+            html: `
+                <div class="text-left py-4">
+                    <p class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3">Diagnostic Context</p>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-[9px] font-bold uppercase text-slate-500 mb-1 block">Primary Asset Type</label>
+                            <select id="swal-sample-type" class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:ring-2 focus:ring-slate-900 focus:outline-none appearance-none">
+                                <option value="Blood">Blood (Venous)</option>
+                                <option value="Urine">Urine (Clean Catch)</option>
+                                <option value="Swab">Swab (Nasal/Throat)</option>
+                                <option value="Serum">Serum</option>
+                                <option value="Plasma">Plasma</option>
+                                <option value="Other">Other / Clinical Specimen</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[9px] font-bold uppercase text-slate-500 mb-1 block">Clinical Operator</label>
+                            <input id="swal-staff" type="text" value="${assignedLab.adminId?.firstName || 'Assigned Staff'}" class="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold focus:ring-2 focus:ring-slate-900 focus:outline-none" readonly />
+                        </div>
+                    </div>
+                </div>
+            `,
+            focusConfirm: false,
             showCancelButton: true,
-            confirmButtonColor: '#7c3aed',
-            confirmButtonText: '✓ Collect Sample',
+            confirmButtonText: 'Finalize Collection',
+            confirmButtonColor: '#0f172a',
+            preConfirm: () => {
+                return {
+                    sampleType: document.getElementById('swal-sample-type').value,
+                    collectedBy: document.getElementById('swal-staff').value
+                }
+            }
         });
-        if (!result.isConfirmed) return;
+
+        if (!formValues) return;
+
         try {
-            const res = await api.localAdminAPI.collectSample(booking._id);
+            const res = await api.localAdminAPI.collectSample(booking._id, formValues);
             if (res.success) {
-                Swal.fire({ icon: 'success', title: 'Sample Collected!', html: `<p class="text-sm">Sample ID: <strong>${res.data.sampleId}</strong></p>`, confirmButtonColor: '#7c3aed' });
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Collection Secured',
+                    html: `<div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
+                        <p class="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-3 text-left">Asset IDs Assigned</p>
+                        <div class="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar text-left">
+                            ${res.data.samples.map(s => `
+                                <div class="flex justify-between items-center py-2 border-b border-emerald-100 last:border-0">
+                                    <span class="text-[8px] font-black text-emerald-800 uppercase tracking-tighter">Diagnostic Unit</span>
+                                    <span class="text-xs font-black text-slate-900 tracking-widest">${s.sampleId}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>`,
+                    confirmButtonColor: '#0f172a'
+                });
                 fetchBookings();
             }
         } catch (err) {
-            Swal.fire('Error', err.message || 'Failed to collect sample.', 'error');
+            Swal.fire('Error', err.message || 'Asset creation failed.', 'error');
             fetchBookings();
-        }
-    };
-
-    const handlePaymentProcess = async (bookingId) => {
-        const result = await Swal.fire({
-            title: 'Process Payment?',
-            text: 'Mark this booking\'s payment as received.',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonColor: '#f59e0b',
-            confirmButtonText: '💳 Process Payment',
-        });
-        if (!result.isConfirmed) return;
-        try {
-            await api.bookingAPI.processPayment(bookingId);
-            Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true })
-                .fire({ icon: 'success', title: 'Payment processed!' });
-            fetchBookings();
-        } catch {
-            Swal.fire('Error', 'Failed to process payment.', 'error');
         }
     };
 
     // ─── Tab config ───
     const tabs = [
-        { key: 'active', label: 'Active', count: bookings.length, color: 'blue' },
-        { key: 'processing', label: 'Processing', count: null, color: 'purple' },
-        { key: 'completed', label: 'Completed', count: null, color: 'green' }
+        { key: 'active', label: 'Reception', count: stats.todayBookings?.length, color: 'blue' },
+        { key: 'diagnostics', label: 'Laboratory', count: null, color: 'purple' },
+        { key: 'verification', label: 'QC Review', count: null, color: 'amber' },
+        { key: 'archive', label: 'Archive', count: null, color: 'green' }
     ];
 
     return (
-        <div className="space-y-6">
+        <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-8 pb-12"
+        >
             {/* ═══ Header ═══ */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Patient Management</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">Manage appointments, samples, and patient workflows.</p>
+                    <div className="flex items-center space-x-2 mb-3">
+                        <div className="h-0.5 w-8 bg-slate-900"></div>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Queue Management System</span>
+                    </div>
+                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">Subject Records</h1>
+                    <p className="text-slate-500 font-medium mt-1">Operational oversight of patient status and diagnostic phases</p>
                 </div>
-                <div className="bg-white p-1 rounded-xl border border-gray-200 flex shadow-sm">
-                    {tabs.map(tab => (
-                        <button
-                            key={tab.key}
-                            onClick={() => setActiveTab(tab.key)}
-                            className={`px-5 py-2 text-sm font-medium rounded-lg transition-all capitalize ${activeTab === tab.key
-                                    ? 'bg-primary-600 text-white shadow-sm'
-                                    : 'text-gray-600 hover:bg-gray-50'
-                                }`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
+
+                <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto">
+                    <div className="relative w-full sm:w-80 group">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-hover:text-slate-900 transition-colors" />
+                        <input
+                            type="text"
+                            placeholder="Universal Reference Search..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 transition-all text-sm font-bold uppercase tracking-wider placeholder:text-slate-300"
+                        />
+                    </div>
+                    <div className="flex p-1.5 bg-white rounded-2xl border border-gray-100 shadow-sm w-full sm:w-auto overflow-x-auto no-scrollbar">
+                        {tabs.map(tab => (
+                            <button
+                                key={tab.key}
+                                onClick={() => setActiveTab(tab.key)}
+                                className={`whitespace-nowrap px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === tab.key
+                                    ? 'bg-slate-900 text-white shadow-lg'
+                                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                                    }`}
+                            >
+                                {tab.label}
+                                {tab.count !== null && tab.count > 0 && (
+                                    <span className={`ml-2 px-1.5 py-0.5 rounded-md text-[8px] font-black ${activeTab === tab.key ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
+                                        {tab.count}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
-            {/* ═══ Stats Cards (active tab only) ═══ */}
-            {activeTab === 'active' && !loading && (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="relative overflow-hidden bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-lg shadow-blue-500/20">
-                        <div className="absolute -top-2 -right-2 opacity-10"><Calendar className="h-20 w-20" /></div>
-                        <div className="relative">
-                            <p className="text-blue-100 text-xs font-medium uppercase tracking-wider">Today's Appointments</p>
-                            <p className="text-3xl font-bold mt-1">{stats.todayBookings.length}</p>
-                            <p className="text-blue-200 text-xs mt-1">
-                                {stats.todayBookings.filter(b => b.status === 'confirmed').length} ready to collect
-                            </p>
-                        </div>
-                    </div>
+            {/* ═══ Stats Cards ═══ */}
+            <AnimatePresence mode="wait">
+                {activeTab === 'active' && !loading && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.98 }}
+                        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+                    >
+                        {[
+                            { label: 'Today Total', val: stats.todayBookings.length, sub: 'Units Expected', icon: Users, color: 'from-slate-900 to-slate-800' },
+                            { label: 'Samples', val: stats.samplesCollected, sub: 'Collected Today', icon: TestTube, color: 'from-indigo-900 to-indigo-800' },
+                            { label: 'In Progress', val: stats.inTesting, sub: 'Active Diagnostics', icon: Activity, color: 'from-amber-900 to-amber-800' },
+                            { label: 'Completed', val: stats.completedToday, sub: 'Reports Ready', icon: CheckCircle, color: 'from-emerald-900 to-emerald-800' }
+                        ].map((s, i) => (
+                            <div key={i} className={`relative overflow-hidden bg-gradient-to-br ${s.color} rounded-[2rem] p-6 text-white shadow-xl shadow-slate-200`}>
+                                <div className="absolute -top-4 -right-4 opacity-10 group-hover:scale-110 transition-transform">
+                                    <s.icon className="h-32 w-32" />
+                                </div>
+                                <div className="relative z-10">
+                                    <p className="text-white/50 text-[10px] font-black uppercase tracking-[0.2em] mb-1">{s.label}</p>
+                                    <h3 className="text-4xl font-black tracking-tighter mb-1">{s.val}</h3>
+                                    <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{s.sub}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
-                    <div className="relative overflow-hidden bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl p-4 text-white shadow-lg shadow-purple-500/20">
-                        <div className="absolute -top-2 -right-2 opacity-10"><TrendingUp className="h-20 w-20" /></div>
-                        <div className="relative">
-                            <p className="text-purple-100 text-xs font-medium uppercase tracking-wider">Upcoming</p>
-                            <p className="text-3xl font-bold mt-1">{stats.upcomingBookings.length}</p>
-                            <p className="text-purple-200 text-xs mt-1">Next 7+ days scheduled</p>
-                        </div>
-                    </div>
-
-                    <div className="relative overflow-hidden bg-gradient-to-br from-red-500 to-rose-600 rounded-xl p-4 text-white shadow-lg shadow-red-500/20">
-                        <div className="absolute -top-2 -right-2 opacity-10"><AlertTriangle className="h-20 w-20" /></div>
-                        <div className="relative">
-                            <p className="text-red-100 text-xs font-medium uppercase tracking-wider">Expired</p>
-                            <p className="text-3xl font-bold mt-1">{stats.expiredBookings.length}</p>
-                            <p className="text-red-200 text-xs mt-1">Need attention / no show</p>
-                        </div>
-                    </div>
-
-                    <div className="relative overflow-hidden bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl p-4 text-white shadow-lg shadow-amber-500/20">
-                        <div className="absolute -top-2 -right-2 opacity-10"><CreditCard className="h-20 w-20" /></div>
-                        <div className="relative">
-                            <p className="text-amber-100 text-xs font-medium uppercase tracking-wider">Pending Payments</p>
-                            <p className="text-3xl font-bold mt-1">{stats.pendingPayments.length}</p>
-                            <p className="text-amber-200 text-xs mt-1">Pay at lab</p>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ═══ Upcoming Activities Timeline (active tab only) ═══ */}
+            {/* ═══ Upcoming Activities Timeline ═══ */}
             {activeTab === 'active' && !loading && upcomingActivities.length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white">
-                        <div className="flex items-center gap-2">
-                            <div className="h-8 w-8 rounded-lg bg-primary-100 flex items-center justify-center">
-                                <Activity className="h-4 w-4 text-primary-600" />
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                    className="bg-white rounded-[2.5rem] border border-gray-100 shadow-2xl shadow-slate-50 overflow-hidden"
+                >
+                    <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
+                        <div className="flex items-center gap-4">
+                            <div className="h-12 w-12 rounded-2xl bg-slate-900 flex items-center justify-center">
+                                <Activity className="h-6 w-6 text-white" />
                             </div>
                             <div>
-                                <h3 className="text-sm font-semibold text-gray-900">Upcoming Activities</h3>
-                                <p className="text-xs text-gray-500">Next 7 days schedule</p>
+                                <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter">Diagnostic Forecast</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Rolling 7-Day Protocol</p>
                             </div>
                         </div>
                     </div>
-                    <div className="divide-y divide-gray-50">
+                    <div className="divide-y divide-gray-50 p-2">
                         {upcomingActivities.map((b, i) => {
                             const today = isToday(b.appointmentDate);
                             const testCount = (b.selectedTests || []).length + (b.selectedPackages || []).length;
                             return (
                                 <div key={b._id}
-                                    className={`px-5 py-3.5 flex items-center gap-4 hover:bg-gray-50/80 transition-colors ${today ? 'bg-blue-50/40' : ''}`}
+                                    className={`px-6 py-5 flex items-center gap-6 hover:bg-slate-50/50 transition-all rounded-[1.5rem] ${today ? 'bg-slate-50/80 ring-1 ring-inset ring-slate-100' : ''}`}
                                 >
-                                    {/* Timeline dot */}
-                                    <div className="flex flex-col items-center gap-0.5 w-12 flex-shrink-0">
-                                        <span className={`text-xs font-bold ${today ? 'text-blue-600' : 'text-gray-500'}`}>
+                                    <div className="flex flex-col items-center justify-center w-14 flex-shrink-0">
+                                        <span className={`text-xl font-black tracking-tighter ${today ? 'text-slate-900' : 'text-slate-400'}`}>
                                             {new Date(b.appointmentDate).toLocaleDateString('en-US', { day: '2-digit' })}
                                         </span>
-                                        <span className={`text-[10px] uppercase font-semibold ${today ? 'text-blue-500' : 'text-gray-400'}`}>
+                                        <span className={`text-[8px] uppercase font-black tracking-[0.25em] ${today ? 'text-slate-900' : 'text-slate-300'}`}>
                                             {new Date(b.appointmentDate).toLocaleDateString('en-US', { month: 'short' })}
                                         </span>
                                         {today && (
-                                            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse mt-0.5" />
+                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-900 animate-pulse mt-1" />
                                         )}
                                     </div>
 
-                                    {/* Connector */}
-                                    <div className={`w-0.5 h-10 rounded-full flex-shrink-0 ${today ? 'bg-blue-300' : 'bg-gray-200'}`} />
+                                    <div className={`w-1 h-12 rounded-full flex-shrink-0 ${today ? 'bg-slate-900' : 'bg-slate-100'}`} />
 
-                                    {/* Content */}
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm font-semibold text-gray-900 truncate">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-lg font-black text-slate-900 uppercase tracking-tighter truncate">
                                                 {b.userId?.firstName} {b.userId?.lastName}
                                             </span>
                                             {today && (
-                                                <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold animate-pulse">
-                                                    TODAY
+                                                <span className="text-[8px] bg-slate-900 text-white px-2 py-1 rounded-full font-black tracking-[0.2em] animate-pulse">
+                                                    LIVE
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
-                                            <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{b.appointmentTime}</span>
-                                            <span className="flex items-center gap-1"><TestTube className="h-3 w-3" />{testCount} test{testCount !== 1 ? 's' : ''}</span>
+                                        <div className="flex items-center gap-4 mt-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                            <span className="flex items-center gap-1.5"><Clock className="h-3 w-3" />{b.appointmentTime}</span>
+                                            <span className="flex items-center gap-1.5"><TestTube className="h-3 w-3" />{testCount} Units</span>
                                             <span>{relativeDay(b.appointmentDate)}</span>
                                         </div>
                                     </div>
 
-                                    {/* Status + Action */}
-                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                    <div className="flex items-center gap-3 flex-shrink-0">
                                         <StatusBadge status={b.status} />
-                                        {today && b.status === 'confirmed' && (
+                                        <div className="h-8 w-[1px] bg-slate-100"></div>
+                                        {b.status === 'confirmed' && (
+                                            <button
+                                                onClick={() => handleStatusUpdate(b._id, 'arrived')}
+                                                className="px-5 py-2.5 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-indigo-100 flex items-center gap-2"
+                                            >
+                                                <Users className="h-3 w-3" /> Mark Arrived
+                                            </button>
+                                        )}
+                                        {b.status === 'arrived' && (
                                             <button
                                                 onClick={() => handleCollectSample(b)}
-                                                className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 flex items-center gap-1 shadow-sm transition-colors"
+                                                className="px-5 py-2.5 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-slate-200 flex items-center gap-2"
                                             >
-                                                <TestTube className="h-3 w-3" /> Collect
+                                                <TestTube className="h-3 w-3" /> Collect Asset
                                             </button>
                                         )}
                                         {b.status === 'pending' && (
                                             <button
                                                 onClick={() => handleStatusUpdate(b._id, 'confirmed')}
-                                                className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 flex items-center gap-1 shadow-sm transition-colors"
+                                                className="px-5 py-2.5 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-slate-200 flex items-center gap-2"
                                             >
-                                                <CheckCircle className="h-3 w-3" /> Confirm
+                                                <CheckCircle className="h-3 w-3" /> Authorize
                                             </button>
                                         )}
                                     </div>
@@ -341,66 +450,58 @@ const AssignedOverview = ({ assignedLab }) => {
                             );
                         })}
                     </div>
-                </div>
+                </motion.div>
             )}
 
-            {/* ═══ Bookings Table ═══ */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                {/* Table Header */}
-                <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                            <Users className="h-4 w-4 text-gray-600" />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-semibold text-gray-900">
-                                {activeTab === 'active' ? 'All Active Bookings' : activeTab === 'processing' ? 'Processing' : 'Completed'}
-                            </h3>
-                            <p className="text-xs text-gray-500">{filteredBookings.length} booking{filteredBookings.length !== 1 ? 's' : ''}</p>
-                        </div>
+            {/* ═══ Records Table ═══ */}
+            <div className="bg-white rounded-[3rem] border border-gray-100 shadow-2xl shadow-slate-100 overflow-hidden">
+                <div className="px-8 py-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/50">
+                    <div>
+                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">
+                            {activeTab === 'active' ? 'Master Queue' : activeTab === 'diagnostics' ? 'Laboratory Stream' : activeTab === 'verification' ? 'Quality Control' : 'Archive Node'}
+                        </h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{filteredBookings.length} Unique Records Identified</p>
                     </div>
-                    <div className="relative max-w-xs">
-                        <input
-                            type="text"
-                            placeholder="Search patients..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                        />
-                        <Eye className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+
+                    <div className="flex items-center gap-2">
+                        <button className="p-3 bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-900 rounded-2xl border border-gray-100 shadow-sm transition-all">
+                            <Filter className="h-4 w-4" />
+                        </button>
+                        <button className="p-3 bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-900 rounded-2xl border border-gray-100 shadow-sm transition-all">
+                            <Download className="h-4 w-4" />
+                        </button>
                     </div>
                 </div>
 
-                {/* Table */}
                 <div className="overflow-x-auto">
-                    <table className="min-w-full">
-                        <thead className="bg-gray-50/80">
-                            <tr>
-                                <th className="px-5 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Patient</th>
-                                <th className="px-5 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Appointment</th>
-                                <th className="px-5 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Tests & Payment</th>
-                                <th className="px-5 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                <th className="px-5 py-3 text-right text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                    <table className="w-full border-collapse">
+                        <thead>
+                            <tr className="border-b border-slate-50">
+                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Subject</th>
+                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Schedule</th>
+                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Medical Batch</th>
+                                <th className="px-8 py-5 text-left text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Phase Status</th>
+                                <th className="px-8 py-5 text-right text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Control</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="divide-y divide-slate-50">
                             {loading ? (
-                                [...Array(4)].map((_, i) => (
+                                [...Array(5)].map((_, i) => (
                                     <tr key={i} className="animate-pulse">
                                         {[...Array(5)].map((_, j) => (
-                                            <td key={j} className="px-5 py-4"><div className="h-4 bg-gray-100 rounded w-3/4" /></td>
+                                            <td key={j} className="px-8 py-6"><div className="h-4 bg-slate-50 rounded-lg w-full" /></td>
                                         ))}
                                     </tr>
                                 ))
                             ) : filteredBookings.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-5 py-16 text-center">
+                                    <td colSpan={5} className="px-8 py-24 text-center">
                                         <div className="flex flex-col items-center">
-                                            <div className="h-14 w-14 bg-gray-50 rounded-full flex items-center justify-center mb-3">
-                                                <User className="h-7 w-7 text-gray-300" />
+                                            <div className="h-20 w-20 bg-slate-50 rounded-[2rem] flex items-center justify-center mb-6">
+                                                <Activity className="h-10 w-10 text-slate-200" />
                                             </div>
-                                            <p className="text-sm font-medium text-gray-500">No {activeTab} bookings</p>
-                                            <p className="text-xs text-gray-400 mt-1">Check back later or adjust your filters.</p>
+                                            <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No Active Transmission</p>
+                                            <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-2">Adjust search parameters or refresh node</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -411,122 +512,225 @@ const AssignedOverview = ({ assignedLab }) => {
                                 const testCount = (row.selectedTests || []).length + (row.selectedPackages || []).length;
 
                                 return (
-                                    <tr
+                                    <motion.tr
                                         key={row._id}
-                                        className={`transition-colors hover:bg-gray-50/80 ${today ? 'bg-blue-50/30 border-l-[3px] border-l-blue-500' : past && row.status === 'confirmed' ? 'bg-red-50/20 border-l-[3px] border-l-red-400' : ''}`}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        className={`group hover:bg-slate-50/50 transition-all ${today ? 'bg-slate-50/30' : ''}`}
                                     >
-                                        {/* Patient */}
-                                        <td className="px-5 py-3.5">
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-5">
+                                                <div className="h-14 w-14 rounded-2xl bg-slate-900 border-4 border-slate-50 flex items-center justify-center text-white text-lg font-black flex-shrink-0 shadow-lg group-hover:scale-105 transition-transform">
                                                     {(row.userId?.firstName?.[0] || '?').toUpperCase()}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="text-sm font-semibold text-gray-900 truncate">{row.userId?.firstName} {row.userId?.lastName}</p>
-                                                    <p className="text-xs text-gray-500 truncate flex items-center gap-1">
-                                                        <Mail className="h-3 w-3 flex-shrink-0" />{row.userId?.email}
+                                                    <p className="text-lg font-black text-slate-900 uppercase tracking-tighter leading-none mb-1">
+                                                        {row.userId?.firstName} {row.userId?.lastName}
                                                     </p>
-                                                    <p className="text-xs text-gray-400 flex items-center gap-1">
-                                                        <Phone className="h-3 w-3 flex-shrink-0" />{row.userId?.phone}
+                                                    <div className="flex items-center gap-3">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                                            <Mail className="h-3 w-3" /> {row.userId?.email}
+                                                        </p>
+                                                        <span className="w-1 h-1 rounded-full bg-slate-200"></span>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                                            <Phone className="h-3 w-3" /> {row.userId?.phone}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        <td className="px-8 py-6">
+                                            <div className="flex flex-col">
+                                                <span className={`text-sm font-black uppercase tracking-wider ${today ? 'text-slate-900' : past ? 'text-rose-600' : 'text-slate-600'}`}>
+                                                    {new Date(row.appointmentDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                </span>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-[10px] font-bold text-slate-400 group-hover:text-slate-900 transition-colors uppercase flex items-center gap-1">
+                                                        <Clock className="h-3 w-3" /> {row.appointmentTime}
+                                                    </span>
+                                                    {today && <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></span>}
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-slate-100 rounded-lg">
+                                                    <TestTube className="h-4 w-4 text-slate-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-900 uppercase tracking-widest">{testCount} Tests</p>
+                                                    <p className={`text-[9px] font-black uppercase tracking-widest mt-1 p-1 inline-block rounded ${row.paymentStatus === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                                        {row.paymentStatus === 'completed' ? 'Pre-Settled' : 'Payment Pending'}
                                                     </p>
                                                 </div>
                                             </div>
                                         </td>
 
-                                        {/* Appointment */}
-                                        <td className="px-5 py-3.5">
-                                            <div className="flex items-center gap-2 text-sm">
-                                                <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                                                <span className={`font-medium ${today ? 'text-blue-700' : past ? 'text-red-600' : 'text-gray-900'}`}>
-                                                    {new Date(row.appointmentDate).toLocaleDateString()}
-                                                </span>
-                                                {today && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-bold">TODAY</span>}
-                                                {past && row.status === 'confirmed' && <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-bold">EXPIRED</span>}
-                                                {future && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold">UPCOMING</span>}
-                                            </div>
-                                            <div className="text-xs text-gray-500 flex items-center gap-1 mt-1 ml-6">
-                                                <Clock className="h-3 w-3" />{row.appointmentTime}
-                                            </div>
-                                        </td>
-
-                                        {/* Tests & Payment */}
-                                        <td className="px-5 py-3.5">
-                                            <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
-                                                <TestTube className="h-4 w-4 text-primary-600" />
-                                                {testCount} item{testCount !== 1 ? 's' : ''}
-                                            </div>
-                                            <div className="mt-1.5 flex items-center gap-2">
-                                                <StatusBadge status={row.paymentStatus} />
-                                                <span className="text-[11px] text-gray-400">
-                                                    {row.paymentMethod === 'pay_later' ? 'Pay at Lab' : 'Online'}
-                                                </span>
-                                            </div>
-                                        </td>
-
-                                        {/* Status */}
-                                        <td className="px-5 py-3.5">
+                                        <td className="px-8 py-6">
                                             <StatusBadge status={row.status} />
                                         </td>
 
-                                        {/* Actions */}
-                                        <td className="px-5 py-3.5">
-                                            <div className="flex flex-col items-end gap-1.5">
+                                        <td className="px-8 py-6 text-right">
+                                            <div className="flex justify-end items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                {row.paymentStatus === 'pending' && (
+                                                    <button
+                                                        onClick={() => handleConfirmPayment(row._id)}
+                                                        className="p-3 bg-white hover:bg-emerald-500 text-slate-400 hover:text-white rounded-2xl border border-gray-100 shadow-sm transition-all"
+                                                        title="Confirm Payment"
+                                                    >
+                                                        <CreditCard className="h-5 w-5" />
+                                                    </button>
+                                                )}
                                                 {row.status === 'pending' && (
                                                     <button
                                                         onClick={() => handleStatusUpdate(row._id, 'confirmed')}
-                                                        className="text-xs bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-100 flex items-center gap-1 transition-colors"
+                                                        className="p-3 bg-white hover:bg-slate-900 text-slate-400 hover:text-white rounded-2xl border border-gray-100 shadow-sm transition-all"
+                                                        title="Authorize Record"
                                                     >
-                                                        <CheckCircle className="h-3 w-3" /> Confirm
+                                                        <CheckCircle className="h-5 w-5" />
                                                     </button>
                                                 )}
                                                 {row.status === 'confirmed' && (
                                                     <button
-                                                        onClick={() => handleCollectSample(row)}
-                                                        disabled={future}
-                                                        title={
-                                                            future ? `Available on ${new Date(row.appointmentDate).toLocaleDateString()}`
-                                                                : past ? 'Expired — will mark as No Show'
-                                                                    : 'Collect sample'
-                                                        }
-                                                        className={`text-xs px-3 py-1.5 rounded-lg border flex items-center gap-1 transition-colors ${future
-                                                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                                                                : past
-                                                                    ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
-                                                                    : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
-                                                            }`}
+                                                        onClick={() => handleStatusUpdate(row._id, 'arrived')}
+                                                        className="p-3 bg-white hover:bg-indigo-600 text-slate-400 hover:text-white rounded-2xl border border-gray-100 shadow-sm transition-all"
+                                                        title="Mark Arrived"
                                                     >
-                                                        {future ? <><Clock className="h-3 w-3" /> Not Yet</>
-                                                            : past ? <><AlertTriangle className="h-3 w-3" /> Expired</>
-                                                                : <><TestTube className="h-3 w-3" /> Collect Sample</>
-                                                        }
+                                                        <Users className="h-5 w-5" />
+                                                    </button>
+                                                )}
+                                                {row.status === 'arrived' && (
+                                                    <button
+                                                        onClick={() => handleCollectSample(row)}
+                                                        className="p-3 bg-white hover:bg-slate-900 text-slate-400 hover:text-white rounded-2xl border border-gray-100 shadow-sm transition-all"
+                                                        title="Initiate Collection"
+                                                    >
+                                                        <TestTube className="h-5 w-5" />
                                                     </button>
                                                 )}
                                                 {['sample_collected', 'processing'].includes(row.status) && (
                                                     <Link
                                                         to="/staff/upload-reports"
-                                                        className="text-xs bg-teal-50 text-teal-700 px-3 py-1.5 rounded-lg border border-teal-200 hover:bg-teal-100 flex items-center gap-1 transition-colors"
+                                                        className="p-3 bg-white hover:bg-slate-900 text-slate-400 hover:text-white rounded-2xl border border-gray-100 shadow-sm transition-all"
+                                                        title="Input Diagnostics"
                                                     >
-                                                        <FileText className="h-3 w-3" /> Add Result
+                                                        <FileText className="h-5 w-5" />
                                                     </Link>
                                                 )}
-                                                {row.paymentStatus === 'pending' && row.paymentMethod === 'pay_later' && (
-                                                    <button
-                                                        onClick={() => handlePaymentProcess(row._id)}
-                                                        className="text-xs bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg border border-amber-200 hover:bg-amber-100 flex items-center gap-1 transition-colors"
-                                                    >
-                                                        <CreditCard className="h-3 w-3" /> Process Payment
-                                                    </button>
-                                                )}
+                                                <button
+                                                    onClick={() => handleViewHistory(row.userId?._id)}
+                                                    className="p-3 bg-white hover:bg-slate-900 text-slate-400 hover:text-white rounded-2xl border border-gray-100 shadow-sm transition-all"
+                                                    title="Reveal History"
+                                                >
+                                                    <Activity className="h-5 w-5" />
+                                                </button>
+                                                <button className="p-3 bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-900 rounded-2xl border border-gray-100 shadow-sm transition-all">
+                                                    <MoreHorizontal className="h-5 w-5" />
+                                                </button>
                                             </div>
                                         </td>
-                                    </tr>
+                                    </motion.tr>
                                 );
                             })}
                         </tbody>
                     </table>
                 </div>
             </div>
-        </div>
+
+            {/* ═══ Patient History Modal ═══ */}
+            <AnimatePresence>
+                {selectedPatient && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setSelectedPatient(null)}
+                            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+                        ></motion.div>
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="relative w-full max-w-4xl bg-white rounded-[3.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+                        >
+                            <div className="p-10 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+                                <div className="flex items-center gap-6">
+                                    <div className="h-16 w-16 rounded-[1.8rem] bg-slate-900 flex items-center justify-center text-white text-xl font-black">
+                                        {patientDetails?.firstName?.[0] || 'P'}
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em] mb-1">Clinical Archive</p>
+                                        <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">
+                                            {patientDetails ? `${patientDetails.firstName} ${patientDetails.lastName}` : 'Patient History'}
+                                        </h2>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedPatient(null)}
+                                    className="p-4 hover:bg-white rounded-2xl transition-all group"
+                                >
+                                    <Eye className="h-6 w-6 text-slate-300 group-hover:text-slate-900 rotate-180" />
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-10 space-y-6">
+                                {loadingHistory ? (
+                                    <div className="flex flex-col items-center py-20">
+                                        <div className="h-12 w-12 border-4 border-slate-100 border-t-slate-900 rounded-full animate-spin"></div>
+                                        <p className="mt-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Hydrating Archive Node...</p>
+                                    </div>
+                                ) : !Array.isArray(patientHistory) ? (
+                                    <div className="text-center py-20">
+                                        <AlertTriangle className="h-12 w-12 text-rose-100 mx-auto mb-4" />
+                                        <p className="text-xs font-black text-rose-300 uppercase tracking-widest">Protocol Error: Invalid Diagnostic Data</p>
+                                    </div>
+                                ) : patientHistory.length === 0 ? (
+                                    <div className="text-center py-20">
+                                        <Activity className="h-12 w-12 text-slate-100 mx-auto mb-4" />
+                                        <p className="text-xs font-black text-slate-300 uppercase tracking-widest">No prior diagnostic records found</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {patientHistory.map((h, i) => (
+                                            <div key={h._id} className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 flex items-center justify-between group hover:bg-white hover:border-slate-200 transition-all">
+                                                <div className="flex items-center gap-6">
+                                                    <div className="flex flex-col items-center justify-center w-12">
+                                                        <span className="text-lg font-black text-slate-900 tracking-tighter">{moment(h.appointmentDate).format('DD')}</span>
+                                                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{moment(h.appointmentDate).format('MMM')}</span>
+                                                    </div>
+                                                    <div className="h-8 w-[1px] bg-slate-200"></div>
+                                                    <div>
+                                                        <p className="text-sm font-black text-slate-900 uppercase tracking-tight mb-0.5">
+                                                            {(h.selectedTests || []).map(t => t.testName).join(', ')}
+                                                            {(h.selectedPackages || []).map(p => p.packageName).join(', ')}
+                                                        </p>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                                                                <FileText className="h-3 w-3" /> {h._id.slice(-8)}
+                                                            </span>
+                                                            <StatusBadge status={h.status} className="scale-75 origin-left" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <Link
+                                                    to={`/staff/upload-reports?bookingId=${h._id}`}
+                                                    className="p-3 bg-white group-hover:bg-slate-900 text-slate-400 group-hover:text-white rounded-xl border border-slate-100 transition-all"
+                                                >
+                                                    <ArrowUpRight className="h-4 w-4" />
+                                                </Link>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+        </motion.div>
     );
 };
 

@@ -1,32 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import {
-  FileText,
-  Download,
-  Eye,
-  Calendar,
-  User,
-  TestTube,
-  Clock,
-  Printer,
-  FileImage,
-  X,
-  Activity,
-  AlertCircle,
-  CheckCircle,
-  Package,
-  ChevronDown,
-  ChevronRight,
-  Shield,
-  AlertTriangle,
-  BarChart3,
-  Send
+  FileText, Download, Eye, Calendar, User, TestTube,
+  Clock, Printer, FileImage, X, Activity, AlertCircle,
+  CheckCircle, Package, ChevronDown, ChevronRight,
+  Shield, AlertTriangle, BarChart3, Send, Search,
+  Filter, Layers, Microscope, Zap, TrendingUp, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import Swal from 'sweetalert2';
 import api from '../services/api';
-import DashboardTable from '../components/common/DashboardTable';
-import StatusBadge from '../components/common/StatusBadge';
+import moment from 'moment';
 
 const StaffReports = () => {
   const { user } = useAuth();
@@ -41,9 +26,10 @@ const StaffReports = () => {
   const [abnormalFilter, setAbnormalFilter] = useState(false);
   const [expandedTests, setExpandedTests] = useState({});
   const [publishing, setPublishing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 9;
 
   // ── helpers ──
-
   const isAbnormal = (val, rangeStr) => {
     if (!val || !rangeStr) return false;
     const parts = rangeStr.split('-');
@@ -55,57 +41,10 @@ const StaffReports = () => {
 
   const countAbnormals = (booking) => {
     let abnormals = 0;
-    let total = 0;
     (booking.testResults || []).forEach(result => {
-      (result.values || []).forEach(v => {
-        total++;
-        if (isAbnormal(v.value, v.referenceRange)) abnormals++;
-      });
+      if (result.isAbnormal) abnormals++;
     });
-    return { abnormals, total };
-  };
-
-  const getAllTestsForBooking = (booking) => {
-    const tests = [];
-    (booking.selectedTests || []).forEach(t => {
-      tests.push({
-        id: t.testId?._id || t.testId,
-        name: t.testId?.name || t.testName,
-        source: 'direct',
-        sourceName: 'Individual Tests'
-      });
-    });
-    (booking.selectedPackages || []).forEach(pkg => {
-      (pkg.packageId?.selectedTests || []).forEach(test => {
-        tests.push({
-          id: test._id,
-          name: test.name,
-          source: 'package',
-          sourceName: pkg.packageId?.name || pkg.packageName
-        });
-      });
-    });
-    return tests;
-  };
-
-  const getTestResult = (booking, testId) => {
-    return (booking.testResults || []).find(r =>
-      (r.testId?._id || r.testId)?.toString() === testId?.toString()
-    ) || null;
-  };
-
-  const getPackageProgress = (booking) => {
-    const allTests = getAllTestsForBooking(booking);
-    const total = allTests.length;
-    const verified = allTests.filter(t => {
-      const r = getTestResult(booking, t.id);
-      return r?.status === 'verified';
-    }).length;
-    const completed = allTests.filter(t => {
-      const r = getTestResult(booking, t.id);
-      return r?.status === 'completed' || r?.status === 'verified';
-    }).length;
-    return { total, verified, completed, percent: total > 0 ? Math.round((verified / total) * 100) : 0 };
+    return abnormals;
   };
 
   const getDisplayName = (booking) => {
@@ -119,11 +58,25 @@ const StaffReports = () => {
     return `${directTestCount} Individual Test${directTestCount > 1 ? 's' : ''}`;
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
+  const getTestsList = (booking) => {
+    const tests = [];
+    (booking.selectedTests || []).forEach(t => tests.push(t.testName || t.testId?.name));
+    (booking.selectedPackages || []).forEach(p => {
+      if (p.packageId?.selectedTests) {
+        p.packageId.selectedTests.forEach(st => tests.push(st.name));
+      }
+    });
+    return [...new Set(tests)].filter(Boolean);
   };
 
-  // ── data ──
+  const isFullyVerified = (booking) => {
+    if (!booking.testResults || booking.testResults.length === 0) return false;
+    // Get all tests that should have results
+    const expectedTestsCount = getTestsList(booking).length;
+    if (booking.testResults.length < expectedTestsCount) return false;
+
+    return booking.testResults.every(res => res.status === 'verified');
+  };
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -133,10 +86,6 @@ const StaffReports = () => {
         const response = await api.bookingAPI.getLabReports(user.assignedLab, 'all', 1, 1000);
         if (response?.success && response.data) {
           setReports(response.data);
-          setFilteredReports(response.data);
-        } else {
-          setReports([]);
-          setFilteredReports([]);
         }
       } catch (err) {
         console.error('Error fetching reports:', err);
@@ -149,632 +98,492 @@ const StaffReports = () => {
 
   useEffect(() => {
     let filtered = [...reports];
-
     if (searchTerm) {
       const lowerSearch = searchTerm.toLowerCase();
       filtered = filtered.filter(report =>
-        report.userId?.firstName?.toLowerCase().includes(lowerSearch) ||
-        report.userId?.lastName?.toLowerCase().includes(lowerSearch) ||
+        `${report.userId?.firstName} ${report.userId?.lastName}`.toLowerCase().includes(lowerSearch) ||
         report.userId?.email?.toLowerCase().includes(lowerSearch) ||
-        report._id?.toLowerCase().includes(lowerSearch) ||
-        report.samples?.[0]?.sampleId?.toLowerCase().includes(lowerSearch) ||
+        report.sampleId?.toLowerCase().includes(lowerSearch) ||
         getDisplayName(report).toLowerCase().includes(lowerSearch)
       );
     }
-
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(report => report.status === statusFilter);
-    }
-
-    if (dateFilter !== 'all') {
-      const now = new Date();
-      let startDate = new Date();
-      switch (dateFilter) {
-        case 'today': startDate.setHours(0, 0, 0, 0); break;
-        case 'week': startDate.setDate(now.getDate() - 7); break;
-        case 'month': startDate.setDate(now.getDate() - 30); break;
+      if (statusFilter === 'completed') {
+        // "Ready for Publish" means completed AND fully verified
+        filtered = filtered.filter(r => r.status === 'completed' && isFullyVerified(r));
+      } else {
+        filtered = filtered.filter(r => r.status === statusFilter);
       }
-      filtered = filtered.filter(report =>
-        new Date(report.reportUploadDate || report.updatedAt) >= startDate
-      );
     }
+    if (abnormalFilter) filtered = filtered.filter(r => countAbnormals(r) > 0);
 
-    if (abnormalFilter) {
-      filtered = filtered.filter(report => countAbnormals(report).abnormals > 0);
-    }
-
+    filtered.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
     setFilteredReports(filtered);
-  }, [reports, searchTerm, statusFilter, dateFilter, abnormalFilter]);
+  }, [reports, searchTerm, statusFilter, abnormalFilter]);
 
-  const viewReportDetails = (report) => {
-    setSelectedReport(report);
-    setExpandedTests({});
-    setShowDetailsModal(true);
-  };
-
-  const downloadReport = async (report) => {
+  const handleVerifyTest = async (testId) => {
+    if (!selectedReport) return;
     try {
-      if (report.reportFile) {
-        const blob = await api.bookingAPI.downloadReport(report._id);
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `report-${report._id}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      } else {
-        Swal.fire({ icon: 'warning', title: 'No PDF Available', text: 'No PDF report file is available for this booking.', confirmButtonColor: '#3b82f6' });
+      const result = await Swal.fire({
+        title: 'Authorize Data Node?',
+        text: 'Confirm that these diagnostic metrics are clinically accurate and ready for patient release.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#10b981',
+        confirmButtonText: 'Verify & Authorize',
+        customClass: { popup: 'rounded-[3rem]' }
+      });
+
+      if (!result.isConfirmed) return;
+
+      const res = await api.resultsAPI.verifyResult(selectedReport._id, testId);
+      if (res.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Asset Validated',
+          text: 'The diagnostic data has been authorized in the medical ledger.',
+          timer: 2000,
+          showConfirmButton: false,
+          customClass: { popup: 'rounded-[3rem]' }
+        });
+
+        // Refresh local state
+        const response = await api.bookingAPI.getLabReports(user.assignedLab, 'all', 1, 1000);
+        if (response?.success) {
+          const updatedReports = response.data;
+          setReports(updatedReports);
+          // Also update selected report to reflect change in modal
+          const updatedSelected = updatedReports.find(r => r._id === selectedReport._id);
+          if (updatedSelected) setSelectedReport(updatedSelected);
+        }
       }
     } catch (error) {
-      console.error('Error downloading report:', error);
-      Swal.fire({ icon: 'error', title: 'Download Failed', text: 'Failed to download the report. Please try again.', confirmButtonColor: '#ef4444' });
+      Swal.fire('Error', 'Verification sequence failed.', 'error');
     }
   };
-
-  const printReport = async (report) => {
-    try {
-      if (report.reportFile) {
-        const blob = await api.bookingAPI.downloadReport(report._id);
-        const url = window.URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-      } else {
-        Swal.fire({ icon: 'warning', title: 'No PDF Available', text: 'No PDF report file is available to print.', confirmButtonColor: '#3b82f6' });
-      }
-    } catch (error) {
-      console.error('Error printing report:', error);
-      Swal.fire({ icon: 'error', title: 'Print Failed', text: 'Failed to print the report. Please try again.', confirmButtonColor: '#ef4444' });
-    }
-  };
-
-  const toggleTestExpand = (testId) => {
-    setExpandedTests(prev => ({ ...prev, [testId]: !prev[testId] }));
-  };
-
-  const sendWhatsAppNotification = (report) => {
-    const phone = report.userId?.phone
-    if (!phone) {
-      Swal.fire({ icon: 'warning', title: 'No Phone Number', text: `Could not send WhatsApp notification — patient ${report.userId?.firstName || ''} has no phone number on record.`, confirmButtonColor: '#f59e0b' })
-      return
-    }
-    // Normalize to international format (India: 91 prefix)
-    let intlPhone = phone.replace(/\D/g, '') // strip non-digits
-    if (intlPhone.startsWith('0')) intlPhone = intlPhone.slice(1) // remove leading 0
-    if (intlPhone.length === 10) intlPhone = '91' + intlPhone  // prepend country code
-
-    const patientName = `${report.userId?.firstName || ''} ${report.userId?.lastName || ''}`.trim()
-    const labName = report.labId?.name || 'the laboratory'
-    const testNames = (report.selectedTests || []).map(t => t.testName || t.testId?.name).filter(Boolean).join(', ') ||
-      (report.selectedPackages || []).map(p => p.packageName || p.packageId?.name).filter(Boolean).join(', ') ||
-      'your recent tests'
-    const reportDate = new Date(report.appointmentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
-
-    const message = [
-      `🔬 *LabMate360 — Results Ready!*`,
-      ``,
-      `Dear ${patientName},`,
-      `Your lab results for *${testNames}* (${reportDate}) from *${labName}* are now available.`,
-      ``,
-      `📥 *How to view your report:*`,
-      `1. Log in to LabMate360`,
-      `2. Go to *Download Reports*`,
-      `3. View or download your results`,
-      ``,
-      `For questions, contact us directly. Thank you for choosing LabMate360! 🏥`,
-    ].join('\n')
-
-    const waUrl = `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`
-    window.open(waUrl, '_blank')
-
-    Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 4000, timerProgressBar: true })
-      .fire({ icon: 'success', title: `📱 WhatsApp opened for ${patientName}`, text: 'Notification sent!' })
-  }
 
   const handlePublish = async (report) => {
     const result = await Swal.fire({
-      title: 'Publish Results?',
-      html: `<p class="text-sm text-gray-600">Publish results for <strong>${report.userId?.firstName} ${report.userId?.lastName}</strong>?<br/>The patient will be able to view and download their results.</p>`,
+      title: 'Authorize Publication?',
+      text: `Commit results for ${report.userId?.firstName} to the patient portal?`,
       icon: 'question',
       showCancelButton: true,
-      confirmButtonColor: '#10b981',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: '✓ Publish',
+      confirmButtonColor: '#0f172a',
+      confirmButtonText: 'Authorize Transmission'
     });
     if (!result.isConfirmed) return;
     try {
       setPublishing(true);
       const res = await api.bookingAPI.publishResults(report._id);
       if (res.success) {
-        // Refresh reports list
+        Swal.fire('Success', 'Diagnostic data published to patient node.', 'success');
+        // refresh...
         const response = await api.bookingAPI.getLabReports(user.assignedLab, 'all', 1, 1000);
-        if (response?.success && response.data) setReports(response.data);
-
-        // Ask whether to notify patient via WhatsApp
-        const notifyResult = await Swal.fire({
-          title: '✅ Results Published!',
-          html: `
-            <p style="font-size:14px;margin-bottom:8px">
-              Results for <strong>${report.userId?.firstName} ${report.userId?.lastName}</strong> have been published.
-            </p>
-            <p style="font-size:13px;color:#6b7280">
-              Would you like to send a WhatsApp notification to the patient?
-              ${report.userId?.phone ? `<br/><span style="color:#10b981;font-weight:600">📱 ${report.userId.phone}</span>` : '<br/><span style="color:#f59e0b">⚠️ No phone number on record</span>'}
-            </p>`,
-          icon: 'success',
-          showCancelButton: true,
-          confirmButtonColor: '#25D366',
-          cancelButtonColor: '#6b7280',
-          confirmButtonText: '📱 Send WhatsApp',
-          cancelButtonText: 'Skip',
-        });
-
-        if (notifyResult.isConfirmed) {
-          sendWhatsAppNotification(report);
-        }
+        if (response?.success) setReports(response.data);
       }
     } catch (error) {
-      Swal.fire({ icon: 'error', title: 'Publish Failed', text: error.message, confirmButtonColor: '#ef4444' });
+      Swal.fire('Error', 'Publication sequence failed.', 'error');
     } finally {
       setPublishing(false);
     }
   };
 
-  // ── progress bar ──
-  const ProgressBar = ({ progress, size = 'sm' }) => {
-    const h = size === 'sm' ? 'h-1.5' : 'h-2.5';
-    const color = progress.percent === 100 ? 'bg-emerald-500' : progress.percent > 0 ? 'bg-amber-500' : 'bg-gray-300';
-    return (
-      <div className="w-full">
-        <div className={`w-full bg-gray-200 rounded-full ${h} overflow-hidden`}>
-          <div className={`${h} rounded-full transition-all duration-500 ${color}`} style={{ width: `${progress.percent}%` }} />
-        </div>
-        <div className="flex justify-between mt-0.5">
-          <span className="text-[10px] text-gray-500">{progress.verified}/{progress.total} verified</span>
-          <span className="text-[10px] font-medium text-gray-700">{progress.percent}%</span>
-        </div>
-      </div>
-    );
-  };
-
-  // ── table columns ──
-  const columns = [
-    {
-      header: 'Patient',
-      accessor: 'userId',
-      render: (row) => (
-        <div>
-          <Link
-            to={`/staff/patient-history/${row.userId?._id}`}
-            className="font-medium text-primary-700 hover:text-primary-900 hover:underline"
-          >
-            {row.userId?.firstName} {row.userId?.lastName}
-          </Link>
-          <div className="text-xs text-gray-500">{row.userId?.email}</div>
-        </div>
-      )
-    },
-    {
-      header: 'Package / Tests',
-      accessor: 'displayName',
-      render: (row) => {
-        const displayName = getDisplayName(row);
-        const progress = getPackageProgress(row);
-        return (
-          <div>
-            <div className="flex items-center text-sm font-medium text-gray-900">
-              <Package className="h-3.5 w-3.5 mr-1.5 text-primary-600 flex-shrink-0" />
-              <span className="truncate max-w-[180px]">{displayName}</span>
-            </div>
-            <div className="mt-1 w-24">
-              <ProgressBar progress={progress} />
-            </div>
-          </div>
-        );
-      }
-    },
-    {
-      header: 'Sample ID',
-      accessor: 'sampleId',
-      render: (row) => {
-        const sampleId = row.samples?.[0]?.sampleId;
-        return sampleId
-          ? <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-700">{sampleId}</span>
-          : <span className="text-xs text-gray-400">—</span>;
-      }
-    },
-    {
-      header: 'Date',
-      accessor: 'appointmentDate',
-      render: (row) => (
-        <div className="text-sm text-gray-600">
-          <div className="flex items-center"><Calendar className="h-3 w-3 mr-1" /> {new Date(row.appointmentDate).toLocaleDateString()}</div>
-          <div className="flex items-center mt-0.5"><Clock className="h-3 w-3 mr-1" /> {row.appointmentTime}</div>
-        </div>
-      )
-    },
-    {
-      header: 'Flags',
-      accessor: 'flags',
-      render: (row) => {
-        const { abnormals, total } = countAbnormals(row);
-        if (abnormals > 0) {
-          return (
-            <span className="flex items-center text-xs font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-full">
-              <AlertTriangle className="h-3 w-3 mr-1" /> {abnormals}
-            </span>
-          );
-        }
-        return <span className="text-xs text-emerald-600 font-medium">Normal</span>;
-      }
-    },
-    {
-      header: 'Status',
-      accessor: 'status',
-      render: (row) => <StatusBadge status={row.status} />
-    },
-    {
-      header: 'Actions',
-      accessor: 'actions',
-      render: (row) => (
-        <div className="flex items-center gap-1.5">
-          <button onClick={() => viewReportDetails(row)} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md" title="View Details">
-            <Eye className="h-4 w-4" />
-          </button>
-          {row.status === 'completed' && (
-            <button
-              onClick={() => handlePublish(row)}
-              disabled={publishing}
-              className="px-2.5 py-1 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-md flex items-center gap-1 shadow-sm disabled:opacity-50 transition-colors"
-              title="Publish to Patient"
-            >
-              <Send className="h-3.5 w-3.5" />
-              Publish
-            </button>
-          )}
-          {row.status === 'result_published' && (
-            <span className="px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-md border border-emerald-200 flex items-center gap-1">
-              <CheckCircle className="h-3.5 w-3.5" />
-              Published
-            </span>
-          )}
-          {row.reportFile && (
-            <>
-              <button onClick={() => downloadReport(row)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md" title="Download">
-                <Download className="h-4 w-4" />
-              </button>
-              <button onClick={() => printReport(row)} className="p-1.5 text-gray-600 hover:bg-gray-50 rounded-md" title="Print">
-                <Printer className="h-4 w-4" />
-              </button>
-            </>
-          )}
-        </div>
-      )
-    }
-  ];
-
-  // ── filters ──
-  const Filters = () => (
-    <div className="flex gap-2 flex-wrap">
-      <select
-        value={statusFilter}
-        onChange={(e) => setStatusFilter(e.target.value)}
-        className="border-gray-200 rounded-lg text-sm focus:ring-primary-500 focus:border-primary-500"
-      >
-        <option value="all">All Status</option>
-        <option value="partially_completed">Partially Completed</option>
-        <option value="result_published">Results Published</option>
-        <option value="completed">Completed</option>
-      </select>
-      <select
-        value={dateFilter}
-        onChange={(e) => setDateFilter(e.target.value)}
-        className="border-gray-200 rounded-lg text-sm focus:ring-primary-500 focus:border-primary-500"
-      >
-        <option value="all">All Dates</option>
-        <option value="today">Today</option>
-        <option value="week">This Week</option>
-        <option value="month">This Month</option>
-      </select>
-      <button
-        onClick={() => setAbnormalFilter(!abnormalFilter)}
-        className={`px-3 py-1.5 rounded-lg text-sm font-medium border flex items-center gap-1.5 transition-colors ${abnormalFilter
-          ? 'bg-red-50 text-red-700 border-red-300'
-          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-          }`}
-      >
-        <AlertTriangle className="h-3.5 w-3.5" />
-        Abnormal Only
-      </button>
-    </div>
-  );
-
-  // ── vitals for modal ──
-  const [patientVitals, setPatientVitals] = useState([]);
-  useEffect(() => {
-    const fetchVitals = async () => {
-      if (selectedReport && selectedReport.userId) {
-        try {
-          const userId = selectedReport.userId._id || selectedReport.userId;
-          const response = await api.vitalsAPI.getPatientVitals(userId);
-          if (response.success) setPatientVitals(response.data);
-        } catch (error) {
-          setPatientVitals([]);
-        }
-      } else {
-        setPatientVitals([]);
-      }
-    };
-    if (showDetailsModal && selectedReport) fetchVitals();
-  }, [showDetailsModal, selectedReport]);
-
-  // ── render ──
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">View Reports</h1>
-        <p className="text-sm text-gray-500">Access and manage patient test reports with package-level details.</p>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="space-y-10 pb-24"
+    >
+      {/* Cinematic Header */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-8">
+        <div>
+          <div className="flex items-center space-x-2 mb-4">
+            <span className="px-4 py-1.5 bg-slate-900 text-white text-[10px] font-black uppercase tracking-[0.3em] rounded-full">
+              Archive Terminal
+            </span>
+            <div className="h-0.5 w-16 bg-slate-200"></div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              Diagnostic Records Database
+            </span>
+          </div>
+          <h1 className="text-5xl font-black text-slate-900 tracking-tighter uppercase mb-3">
+            Report Intelligence
+          </h1>
+          <p className="text-xl text-slate-500 font-medium max-w-2xl">
+            Comprehensive ledger of clinical findings, abnormality clusters, and verified medical assets.
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center gap-5 w-full lg:w-auto">
+          <div className="relative w-full sm:w-80 group">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-hover:text-slate-900 transition-colors" />
+            <input
+              type="text"
+              placeholder="Identify Subject / Batch..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-14 pr-6 py-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm focus:outline-none focus:ring-8 focus:ring-slate-900/5 transition-all text-xs font-black uppercase tracking-widest placeholder:text-slate-200"
+            />
+          </div>
+        </div>
       </div>
 
-      <DashboardTable
-        data={filteredReports}
-        columns={columns}
-        loading={loading}
-        onSearch={setSearchTerm}
-        searchValue={searchTerm}
-        searchPlaceholder="Search by patient, package, or sample ID..."
-        filters={<Filters />}
-        emptyMessage="No reports found"
-      />
+      {/* Tactical Control Bar */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex p-1.5 bg-white rounded-[2rem] border border-gray-100 shadow-sm w-fit">
+          {[
+            { id: 'all', label: 'Global Ledger', icon: Layers },
+            { id: 'completed', label: 'Ready for Publish', icon: CheckCircle },
+            { id: 'result_published', label: 'Released', icon: Shield }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id)}
+              className={`flex items-center gap-3 px-8 py-3.5 rounded-[1.5rem] transition-all ${statusFilter === tab.id
+                ? 'bg-slate-900 text-white shadow-xl shadow-slate-200'
+                : 'text-slate-400 hover:text-slate-900'
+                }`}
+            >
+              <tab.icon className="h-4 w-4" />
+              <span className="text-[11px] font-black uppercase tracking-[0.15em]">{tab.label}</span>
+            </button>
+          ))}
+        </div>
 
-      {/* ── Report Details Modal ── */}
-      {showDetailsModal && selectedReport && (() => {
-        const allTests = getAllTestsForBooking(selectedReport);
-        const progress = getPackageProgress(selectedReport);
-        const { abnormals, total: totalParams } = countAbnormals(selectedReport);
-        const displayName = getDisplayName(selectedReport);
+        <button
+          onClick={() => setAbnormalFilter(!abnormalFilter)}
+          className={`flex items-center gap-3 px-8 py-5 rounded-[2rem] border transition-all ${abnormalFilter
+            ? 'bg-rose-50 border-rose-100 text-rose-600 shadow-lg shadow-rose-100'
+            : 'bg-white border-gray-100 text-slate-400 hover:bg-slate-50'
+            }`}
+        >
+          <AlertTriangle className={`h-4 w-4 ${abnormalFilter ? 'animate-pulse' : ''}`} />
+          <span className="text-[11px] font-black uppercase tracking-[0.15em]">Abnormality Filter</span>
+        </button>
+      </div>
 
-        // Group tests by source
-        const grouped = {};
-        allTests.forEach(test => {
-          if (!grouped[test.sourceName]) grouped[test.sourceName] = [];
-          grouped[test.sourceName].push(test);
-        });
+      {/* Diagnostic Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {loading ? (
+          [...Array(6)].map((_, i) => (
+            <div key={i} className="bg-white rounded-[3rem] p-10 h-80 animate-pulse border border-gray-100" />
+          ))
+        ) : filteredReports.length === 0 ? (
+          <div className="col-span-full py-32 flex flex-col items-center justify-center bg-white rounded-[4rem] border border-gray-100 shadow-sm">
+            <Microscope className="h-16 w-16 text-slate-100 mb-6" />
+            <p className="text-xs font-black text-slate-300 uppercase tracking-[0.4em]">No matching records in current archive</p>
+          </div>
+        ) : filteredReports.map((report, idx) => {
+          const abnormals = countAbnormals(report);
+          const isPublished = report.status === 'result_published';
 
-        return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          return (
+            <motion.div
+              key={report._id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.05 }}
+              whileHover={{ y: -8 }}
+              className={`group relative bg-white rounded-[3.5rem] p-10 shadow-2xl shadow-slate-100 border transition-all overflow-hidden ${abnormals > 0 ? 'border-rose-100' : 'border-slate-50'
+                }`}
+            >
+              {/* Status Overlay */}
+              <div className="absolute top-0 right-0 p-8">
+                {isPublished ? (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
+                    <Shield className="h-3 w-3" />
+                    <span className="text-[9px] font-black uppercase tracking-widest">Released</span>
+                  </div>
+                ) : abnormals > 0 ? (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 rounded-full border border-rose-100 animate-pulse">
+                    <AlertTriangle className="h-3 w-3" />
+                    <span className="text-[9px] font-black uppercase tracking-widest">{abnormals} Flags</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-slate-400 rounded-full border border-slate-100">
+                    <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+                    <span className="text-[9px] font-black uppercase tracking-widest">Locked</span>
+                  </div>
+                )}
+              </div>
 
-              {/* Header */}
-              <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                <div>
-                  <h3 className="font-semibold text-lg text-gray-900">{displayName}</h3>
-                  <p className="text-sm text-gray-500">
-                    {selectedReport.userId?.firstName} {selectedReport.userId?.lastName}
-                    {' • '}Sample: <span className="font-mono">{selectedReport.samples?.[0]?.sampleId || '—'}</span>
-                  </p>
+              <div className="relative z-10 flex flex-col h-full">
+                <div className="mb-8">
+                  <div className={`h-16 w-16 rounded-[1.5rem] flex items-center justify-center mb-8 shadow-inner transition-transform group-hover:scale-110 ${abnormals > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-900 text-white'
+                    }`}>
+                    <FileText className="h-7 w-7" />
+                  </div>
+                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] mb-2">Subject Ledger</p>
+                  <h3 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-tight mb-4">
+                    {report.userId?.firstName} {report.userId?.lastName}
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2 px-3 py-1 bg-slate-50 rounded-lg">
+                      <Calendar className="h-3 w-3 text-slate-400" />
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{moment(report.updatedAt).format('DD MMM YYYY')}</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1 bg-slate-50 rounded-lg">
+                      <Clock className="h-3 w-3 text-slate-400" />
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{report.appointmentTime}</span>
+                    </div>
+                  </div>
                 </div>
-                <button onClick={() => setShowDetailsModal(false)} className="p-1 hover:bg-gray-200 rounded-full">
-                  <X className="h-5 w-5 text-gray-500" />
+
+                <div className="space-y-4 mb-10 flex-1">
+                  {/* Sample ID Identification Block */}
+                  {report.sampleId && (
+                    <div className="p-5 bg-slate-900 text-white rounded-[1.8rem] shadow-xl shadow-slate-200 flex justify-between items-center group/sample transition-all hover:bg-slate-800">
+                      <div className="flex flex-col">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.3em] mb-1">Physical Node ID</span>
+                        <span className="text-xs font-black tracking-[0.2em]">{report.sampleId}</span>
+                      </div>
+                      <Layers className="h-4 w-4 text-slate-500 group-hover/sample:text-white transition-colors" />
+                    </div>
+                  )}
+
+                  <div className="p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 flex flex-col gap-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Diagnostic Bundle</p>
+                        <p className="text-xs font-black text-slate-700 uppercase tracking-tight">
+                          {getDisplayName(report)}
+                        </p>
+                      </div>
+                      <div className={`px-2.5 py-1 rounded-md text-[8px] font-black uppercase tracking-widest ${isFullyVerified(report) ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'
+                        }`}>
+                        {isFullyVerified(report) ? 'Verified' : 'In Progress'}
+                      </div>
+                    </div>
+
+                    {/* Test List Visualization */}
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200/50">
+                      {getTestsList(report).slice(0, 3).map((test, tidx) => (
+                        <span key={tidx} className="px-3 py-1 bg-white border border-slate-100 text-[8px] font-bold text-slate-500 uppercase tracking-widest rounded-full">
+                          {test}
+                        </span>
+                      ))}
+                      {getTestsList(report).length > 3 && (
+                        <span className="px-3 py-1 bg-slate-100 text-[8px] font-bold text-slate-400 uppercase tracking-widest rounded-full">
+                          +{getTestsList(report).length - 3} More
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setSelectedReport(report);
+                      setShowDetailsModal(true);
+                    }}
+                    className="flex-1 py-4 bg-slate-50 hover:bg-slate-900 text-slate-400 hover:text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border border-slate-100 hover:border-slate-900 flex items-center justify-center gap-2"
+                  >
+                    <Eye className="h-4 w-4" /> Reveal details
+                  </button>
+                  {!isPublished && report.status === 'completed' && (
+                    <button
+                      onClick={() => handlePublish(report)}
+                      disabled={publishing}
+                      className="px-6 py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-slate-100 hover:scale-105 active:scale-95 transition-all"
+                    >
+                      Publish
+                    </button>
+                  )}
+                  {isPublished && report.reportFile && (
+                    <button
+                      className="px-6 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-emerald-50 hover:scale-105 active:scale-95 transition-all"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+      {/* Clinical Review Modal */}
+      <AnimatePresence>
+        {showDetailsModal && selectedReport && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 lg:p-12">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDetailsModal(false)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-2xl"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              className="relative w-full max-w-4xl bg-white rounded-[4rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-10 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                <div className="flex items-center gap-6">
+                  <div className="h-20 w-20 rounded-[2rem] bg-slate-900 text-white flex items-center justify-center shadow-2xl shadow-slate-200">
+                    <User className="h-8 w-8" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mb-1">Clinical Subject Intelligence</p>
+                    <h2 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">
+                      {selectedReport.userId?.firstName} {selectedReport.userId?.lastName}
+                    </h2>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="h-14 w-14 rounded-full bg-white border border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all shadow-sm"
+                >
+                  <X className="h-6 w-6" />
                 </button>
               </div>
 
-              <div className="p-6 overflow-y-auto space-y-5 flex-1">
+              {/* Modal Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 mb-10">
+                  <div className="lg:col-span-2 space-y-6">
+                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-[0.3em] flex items-center gap-3">
+                      <TestTube className="h-4 w-4" /> Diagnostic Asset Ledger
+                    </h3>
 
-                {/* Summary Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 text-center">
-                    <div className="text-2xl font-bold text-gray-900">{progress.total}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">Total Tests</div>
-                  </div>
-                  <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200 text-center">
-                    <div className="text-2xl font-bold text-emerald-700">{progress.verified}</div>
-                    <div className="text-xs text-emerald-600 mt-0.5">Verified</div>
-                  </div>
-                  <div className={`p-3 rounded-lg border text-center ${abnormals > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
-                    <div className={`text-2xl font-bold ${abnormals > 0 ? 'text-red-700' : 'text-emerald-700'}`}>{abnormals}</div>
-                    <div className={`text-xs mt-0.5 ${abnormals > 0 ? 'text-red-600' : 'text-emerald-600'}`}>Abnormal Flags</div>
-                  </div>
-                  <div className="bg-indigo-50 p-3 rounded-lg border border-indigo-200 text-center">
-                    <div className="text-2xl font-bold text-indigo-700">{formatCurrency(selectedReport.totalAmount)}</div>
-                    <div className="text-xs text-indigo-600 mt-0.5">Amount</div>
-                  </div>
-                </div>
-
-                {/* Verification Progress Bar */}
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-700">Verification Progress</span>
-                    <StatusBadge status={selectedReport.status} />
-                  </div>
-                  <ProgressBar progress={progress} size="md" />
-                </div>
-
-                {/* Patient Info */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Patient</h4>
-                    <div className="font-medium">{selectedReport.userId?.firstName} {selectedReport.userId?.lastName}</div>
-                    <div className="text-sm text-gray-600">{selectedReport.userId?.email}</div>
-                    <div className="text-sm text-gray-600">{selectedReport.userId?.phone}</div>
-                    <div className="text-xs text-gray-500 mt-1">{selectedReport.userId?.age} yrs, {selectedReport.userId?.gender}</div>
-                  </div>
-                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Booking</h4>
-                    <div className="text-sm"><span className="text-gray-500">Date:</span> {new Date(selectedReport.appointmentDate).toLocaleDateString()}</div>
-                    <div className="text-sm"><span className="text-gray-500">Time:</span> {selectedReport.appointmentTime}</div>
-                    <div className="mt-2 flex gap-2">
-                      <StatusBadge status={selectedReport.status} />
-                      <StatusBadge status={selectedReport.paymentStatus} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Recent Vitals */}
-                {patientVitals.length > 0 && (
-                  <div>
-                    <h4 className="font-medium mb-3 flex items-center text-rose-700">
-                      <Activity className="w-4 h-4 mr-2" /> Recent Vitals
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {patientVitals.slice(0, 3).map((vital, idx) => (
-                        <div key={idx} className={`p-3 rounded-lg border ${vital.status === 'abnormal' ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
-                          <div className="text-xs text-gray-500 mb-1">{new Date(vital.createdAt).toLocaleString()}</div>
-                          <div className="flex justify-between items-end">
-                            <div>
-                              <div className="text-lg font-bold text-gray-900">{vital.heartRate} <span className="text-xs font-normal text-gray-500">BPM</span></div>
-                              <div className="text-xs text-gray-500">Heart Rate</div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-lg font-bold text-gray-900">{vital.spo2}%</div>
-                              <div className="text-xs text-gray-500">SpO2</div>
-                            </div>
-                          </div>
-                          {vital.status === 'abnormal' && (
-                            <div className="mt-2 text-xs text-amber-700 font-medium flex items-center">
-                              <AlertCircle className="w-3 h-3 mr-1" /> Abnormal
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Package-Grouped Test Results (Accordion) */}
-                <div>
-                  <h4 className="font-medium mb-3 flex items-center text-indigo-900">
-                    <BarChart3 className="w-4 h-4 mr-2" /> Test Results by Package
-                  </h4>
-                  <div className="space-y-3">
-                    {Object.entries(grouped).map(([groupName, tests]) => (
-                      <div key={groupName} className="border border-indigo-100 rounded-lg overflow-hidden">
-                        <div className="bg-indigo-50/70 px-4 py-2.5 text-sm font-semibold text-indigo-800 flex items-center">
-                          <Package className="h-4 w-4 mr-2" />
-                          {groupName}
-                          <span className="ml-auto text-xs font-normal text-indigo-600">{tests.length} tests</span>
-                        </div>
-                        <div className="divide-y divide-gray-100">
-                          {tests.map((test, tIdx) => {
-                            const result = getTestResult(selectedReport, test.id);
-                            const testStatus = result?.status || 'pending';
-                            const isExpanded = expandedTests[test.id];
-
-                            const statusColors = {
-                              pending: 'bg-gray-100 text-gray-600',
-                              completed: 'bg-indigo-100 text-indigo-700',
-                              verified: 'bg-emerald-100 text-emerald-700'
-                            };
-
-                            return (
-                              <div key={test.id || tIdx}>
-                                <button
-                                  onClick={() => toggleTestExpand(test.id)}
-                                  className="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    {isExpanded
-                                      ? <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
-                                      : <ChevronRight className="h-3.5 w-3.5 text-gray-400" />}
-                                    <span className="text-sm text-gray-900">{test.name}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    {result && result.values?.some(v => isAbnormal(v.value, v.referenceRange)) && (
-                                      <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-medium flex items-center">
-                                        <AlertTriangle className="h-3 w-3 mr-0.5" /> Abnormal
-                                      </span>
-                                    )}
-                                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[testStatus]}`}>
-                                      {testStatus === 'pending' ? 'Pending' : testStatus === 'completed' ? 'Completed' : 'Verified'}
-                                    </span>
-                                    {testStatus === 'verified' && <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />}
-                                  </div>
-                                </button>
-
-                                {/* Expanded: show result values */}
-                                {isExpanded && result && result.values && result.values.length > 0 && (
-                                  <div className="px-4 pb-3">
-                                    <table className="min-w-full">
-                                      <thead>
-                                        <tr className="border-b border-gray-100">
-                                          <th className="text-left text-xs font-medium text-gray-500 py-1.5 w-1/3">Parameter</th>
-                                          <th className="text-left text-xs font-medium text-gray-500 py-1.5 w-1/3">Result</th>
-                                          <th className="text-left text-xs font-medium text-gray-500 py-1.5 w-1/3">Reference Range</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {result.values.map((val, vIdx) => {
-                                          const flagged = isAbnormal(val.value, val.referenceRange);
-                                          return (
-                                            <tr key={vIdx} className={`border-b border-gray-50 ${flagged ? 'bg-red-50' : ''}`}>
-                                              <td className="py-1.5 text-sm text-gray-700">{val.label}</td>
-                                              <td className={`py-1.5 text-sm font-medium ${flagged ? 'text-red-700' : 'text-gray-900'}`}>
-                                                {val.value} <span className="text-xs font-normal text-gray-500">{val.unit}</span>
-                                                {flagged && <AlertTriangle className="h-3 w-3 inline ml-1 text-red-500" />}
-                                              </td>
-                                              <td className="py-1.5 text-xs text-gray-500">{val.referenceRange || '—'}</td>
-                                            </tr>
-                                          );
-                                        })}
-                                      </tbody>
-                                    </table>
-                                    {/* Verification info */}
-                                    {result.verifiedAt && (
-                                      <div className="mt-2 text-xs text-emerald-600 flex items-center bg-emerald-50 px-3 py-1.5 rounded-md">
-                                        <Shield className="h-3 w-3 mr-1.5" />
-                                        Verified on {new Date(result.verifiedAt).toLocaleString()}
-                                      </div>
-                                    )}
-                                    {result.submittedAt && (
-                                      <div className="mt-1 text-xs text-gray-500 flex items-center px-3 py-1">
-                                        <Clock className="h-3 w-3 mr-1.5" />
-                                        Submitted on {new Date(result.submittedAt).toLocaleString()}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-
-                                {isExpanded && (!result || !result.values || result.values.length === 0) && (
-                                  <div className="px-4 pb-3">
-                                    <div className="text-xs text-gray-400 italic py-2">No results recorded for this test.</div>
-                                  </div>
-                                )}
+                    <div className="space-y-4">
+                      {selectedReport.testResults && selectedReport.testResults.length > 0 ? (
+                        selectedReport.testResults.map((result, ridx) => (
+                          <div key={ridx} className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 group transition-all hover:bg-white hover:shadow-xl hover:shadow-slate-100">
+                            <div className="flex justify-between items-start mb-6">
+                              <div>
+                                <h4 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-1">
+                                  {result.testId?.name || "Test Result"}
+                                </h4>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{moment(result.submittedAt).format('DD MMM, HH:mm')}</span>
+                                  <div className={`h-1.5 w-1.5 rounded-full ${result.status === 'verified' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{result.status}</span>
+                                </div>
                               </div>
-                            );
-                          })}
+                              {result.isAbnormal && (
+                                <div className="px-4 py-2 bg-rose-50 text-rose-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-rose-100 animate-pulse">
+                                  Abnormality Detected
+                                </div>
+                              )}
+                              {result.status !== 'verified' && (
+                                <button
+                                  onClick={() => handleVerifyTest(result.testId?._id || result.testId)}
+                                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 transition-all flex items-center gap-2"
+                                >
+                                  <Shield className="h-3 w-3" /> Authorize Results
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {result.values?.map((v, vidx) => (
+                                <div key={vidx} className="p-4 bg-white rounded-2xl border border-slate-50 group-hover:border-slate-100 transition-colors">
+                                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{v.label}</p>
+                                  <div className="flex items-baseline gap-2">
+                                    <span className="text-sm font-black text-slate-900">{v.value}</span>
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{v.unit}</span>
+                                  </div>
+                                  <p className="text-[8px] font-medium text-slate-300 mt-1 uppercase">Range: {v.referenceRange}</p>
+                                </div>
+                              ))}
+                            </div>
+
+                            {result.findings && (
+                              <div className="mt-6 pt-6 border-t border-slate-200/50">
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Findings / Interpretation</p>
+                                <p className="text-sm font-medium text-slate-600 italic">"{result.findings}"</p>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="py-20 flex flex-col items-center justify-center bg-slate-50 rounded-[3rem] border border-dashed border-slate-200">
+                          <AlertCircle className="h-10 w-10 text-slate-200 mb-4" />
+                          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest text-center">Diagnostic results have not been <br />committed to this ledger yet.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-8">
+                    <div className="p-8 bg-slate-900 text-white rounded-[3rem] shadow-2xl shadow-slate-200">
+                      <div className="flex items-center gap-3 mb-6">
+                        <Activity className="h-5 w-5 text-emerald-400" />
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.3em]">Core Synchronization</h4>
+                      </div>
+
+                      <div className="space-y-6">
+                        <div>
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Node Assignment</p>
+                          <p className="text-sm font-black uppercase tracking-widest truncate">{selectedReport.labId?.name}</p>
+                        </div>
+                        <div>
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Physical Sample Node</p>
+                          <div className="flex items-center gap-3 text-emerald-400">
+                            <span className="text-lg font-black tracking-[0.2em]">{selectedReport.sampleId || 'N/A'}</span>
+                            <RefreshCw className="h-4 w-4 animate-spin-slow" />
+                          </div>
+                        </div>
+                        <div className="pt-6 border-t border-slate-800">
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Verification Integrity</p>
+                          <div className="flex items-center gap-4">
+                            <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-emerald-500 transition-all duration-1000"
+                                style={{ width: `${(selectedReport.testResults?.filter(r => r.status === 'verified').length / getTestsList(selectedReport).length) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] font-black text-emerald-400">
+                              {Math.round((selectedReport.testResults?.filter(r => r.status === 'verified').length / getTestsList(selectedReport).length) * 100) || 0}%
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    ))}
+                    </div>
+
+                    <div className="p-8 bg-emerald-50 border border-emerald-100 rounded-[3rem]">
+                      <h4 className="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-4">Patient Portal Status</h4>
+                      <p className="text-xs font-semibold text-emerald-600 leading-relaxed">
+                        {selectedReport.status === 'result_published'
+                          ? "This report has been fully synchronized and released to the patient portal. Secure downlink available."
+                          : "Verification sequence in progress. Once 100% integrity is achieved, the record can be released to the patient node."
+                        }
+                      </p>
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Report File */}
-                {selectedReport.reportFile && (
-                  <div className="bg-green-50 border border-green-100 rounded-lg p-4 flex items-center justify-between">
-                    <div className="flex items-center">
-                      <FileImage className="h-8 w-8 text-green-600 mr-3" />
-                      <div>
-                        <div className="font-medium text-green-900">Final Report Available</div>
-                        <div className="text-xs text-green-700">Uploaded {new Date(selectedReport.reportUploadDate || selectedReport.updatedAt).toLocaleDateString()}</div>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => downloadReport(selectedReport)} className="bg-white text-green-700 hover:bg-green-50 border border-green-200 px-3 py-1.5 rounded text-sm font-medium transition-colors">
-                        Download
-                      </button>
-                      <button onClick={() => printReport(selectedReport)} className="bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 px-3 py-1.5 rounded text-sm font-medium transition-colors">
-                        Print
-                      </button>
-                    </div>
-                  </div>
+              {/* Modal Footer */}
+              <div className="p-10 border-t border-slate-50 bg-slate-50/30 flex justify-end gap-5">
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-900 transition-colors"
+                >
+                  Close Terminal
+                </button>
+                {selectedReport.status !== 'result_published' && selectedReport.status === 'completed' && isFullyVerified(selectedReport) && (
+                  <button
+                    onClick={() => {
+                      setShowDetailsModal(false);
+                      handlePublish(selectedReport);
+                    }}
+                    className="px-12 py-5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] shadow-xl shadow-slate-200 hover:scale-105 active:scale-95 transition-all"
+                  >
+                    Authorize Publication
+                  </button>
                 )}
               </div>
-            </div>
+            </motion.div>
           </div>
-        );
-      })()}
-    </div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };
 

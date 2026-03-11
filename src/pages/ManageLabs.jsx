@@ -1,158 +1,104 @@
-import { useState, useEffect } from 'react'
-import { 
-  Building2, 
-  Plus,
-  Edit,
-  Trash2,
-  Search,
-  Loader,
-  AlertCircle,
-  MapPin,
-  Phone,
-  Mail,
-  Calendar
-} from 'lucide-react'
-import Swal from 'sweetalert2'
-import api from '../services/api'
+import React, { useState, useEffect } from 'react';
+import {
+  Building2, Plus, Edit, Trash2, Search, Loader,
+  AlertCircle, MapPin, Phone, Mail, Calendar,
+  ShieldCheck, Zap, Activity, Globe, Info,
+  CheckCircle2, FlaskConical, Boxes, ArrowRight,
+  X, ChevronRight, Globe2, Link as LinkIcon,
+  Clock, Save, Camera, Smartphone, Network
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import Swal from 'sweetalert2';
+import api from '../services/api';
 
-const { labAPI, testAPI, packageAPI } = api
+const { labAPI, testAPI, packageAPI } = api;
 
 const ManageLabs = () => {
-  const [labs, setLabs] = useState([])
-  const [tests, setTests] = useState([])
-  const [packages, setPackages] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [fieldErrors, setFieldErrors] = useState({})
-  
-  // Modal states
-  const [showAddLabModal, setShowAddLabModal] = useState(false)
-  const [showEditLabModal, setShowEditLabModal] = useState(false)
-  const [selectedLab, setSelectedLab] = useState(null)
-  
-  // Search and filter states
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterStatus, setFilterStatus] = useState('all')
-  
-  // Lab form state
-  const [newLab, setNewLab] = useState({
-    name: '',
-    description: '',
-    address: '',
-    city: '',
-    state: '',
-    pincode: '',
-    phone: '',
-    email: '',
-    contact: '', // This might be the main contact number or a combined contact field
-    operatingHours: {
-      start: '',
-      end: ''
-    },
-    availableTests: [],
-    availablePackages: [],
-    status: 'active'
-  })
+  const [labs, setLabs] = useState([]);
+  const [tests, setTests] = useState([]);
+  const [packages, setPackages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
-  // Fetch data on component mount
+  const [showAddLabModal, setShowAddLabModal] = useState(false);
+  const [showEditLabModal, setShowEditLabModal] = useState(false);
+  const [selectedLab, setSelectedLab] = useState(null);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+
+  const [newLab, setNewLab] = useState({
+    name: '', description: '', address: '', city: '', state: '', pincode: '',
+    phone: '', email: '', operatingHours: { start: '09:00', end: '20:00' },
+    availableTests: [], availablePackages: [], status: 'active',
+    image: null, imagePreview: null
+  });
+
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      fetchLabs()
-      fetchTests()
-      fetchPackages()
-    } else {
-      setError('Please log in to access this page')
-    }
-  }, [])
+    fetchLabs();
+    fetchTests();
+    fetchPackages();
+  }, []);
 
   const fetchLabs = async () => {
     try {
-      setLoading(true)
-      setError('')
-      console.log('Fetching labs...')
-      const response = await labAPI.getLabs()
-      console.log('Labs API response:', response)
-      const labsData = response.data || []
-      console.log('Fetched labs data:', labsData)
-      // Debug: Log status of each lab
-      labsData.forEach(lab => {
-        console.log(`Lab "${lab.name}" - isActive: ${lab.isActive}`)
-      })
-      setLabs(labsData)
+      setLoading(true);
+      const response = await labAPI.getLabs();
+      setLabs(response.data || []);
     } catch (err) {
-      const errorMessage = err.message || 'Failed to fetch labs'
-      setError(errorMessage)
-      console.error('Error fetching labs:', err)
+      setError(err.message || 'Failed to fetch global nodes.');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const fetchTests = async () => {
     try {
-      const response = await testAPI.getTests()
-      const testsData = response.data || []
-      console.log('Fetched tests data:', testsData)
-      setTests(testsData)
-    } catch (err) {
-      console.error('Error fetching tests:', err)
-    }
-  }
+      const response = await testAPI.getTests();
+      setTests(response.data || []);
+    } catch (err) { console.error(err); }
+  };
 
   const fetchPackages = async () => {
     try {
-      const response = await packageAPI.getPackages()
-      const packagesData = response.data || []
-      console.log('Fetched packages data:', packagesData)
-      setPackages(packagesData)
-    } catch (err) {
-      console.error('Error fetching packages:', err)
-    }
-  }
+      const response = await packageAPI.getPackages();
+      setPackages(response.data || []);
+    } catch (err) { console.error(err); }
+  };
 
-  // Handle add lab
-  const handleAddLab = async () => {
+  const handleAction = async (isUpdate = false) => {
     try {
-      setLoading(true)
-      setError('')
-      setFieldErrors({})
-      
-      // Validate required fields
-      const errors = {}
-      if (!newLab.name) errors.name = 'Lab name is required'
-      if (!newLab.address) errors.address = 'Address is required'
-      if (!newLab.city) errors.city = 'City is required'
-      if (!newLab.state) errors.state = 'State is required'
-      if (!newLab.pincode) errors.pincode = 'Pincode is required'
-      if (!newLab.phone) errors.phone = 'Phone number is required'
-      if (!newLab.email) errors.email = 'Email is required'
-      if (!newLab.operatingHours.start) errors.operatingHours = 'Operating hours are required'
-      if (!newLab.operatingHours.end) errors.operatingHours = 'Operating hours are required'
-      
+      setLoading(true);
+      setError('');
+      setFieldErrors({});
+
+      const errors = {};
+      if (!newLab.name) errors.name = 'Required';
+      if (!newLab.address) errors.address = 'Required';
+      if (!newLab.city) errors.city = 'Required';
+      if (!newLab.phone) errors.phone = 'Required';
+
       if (Object.keys(errors).length > 0) {
-        setFieldErrors(errors)
-        setLoading(false)
-        return
+        setFieldErrors(errors);
+        setLoading(false);
+        return;
       }
 
-      // Prepare lab data with required fields (backend expects JSON strings for certain fields)
       const labData = {
         name: newLab.name,
-        description: newLab.description || 'Laboratory services and facilities',
-        address: JSON.stringify({
-          street: newLab.address,
-          city: newLab.city,
-          state: newLab.state,
-          zipCode: newLab.pincode, // Backend expects zipCode, not pincode
-          country: 'India'
-        }),
-        contact: JSON.stringify({
-          phone: newLab.phone,
-          email: newLab.email,
-          website: '' // Add website field as expected by backend
-        }),
-        operatingHours: JSON.stringify({
+        description: newLab.description || 'Clinical intelligence node.',
+        image: newLab.image, // Include image file
+        address: {
+          street: newLab.address, city: newLab.city, state: newLab.state,
+          zipCode: newLab.pincode, country: 'India'
+        },
+        location: {
+          lat: parseFloat(newLab.lat || 0),
+          lng: parseFloat(newLab.lng || 0)
+        },
+        contact: { phone: newLab.phone, email: newLab.email, website: '' },
+        operatingHours: {
           monday: { open: newLab.operatingHours.start, close: newLab.operatingHours.end, isOpen: true },
           tuesday: { open: newLab.operatingHours.start, close: newLab.operatingHours.end, isOpen: true },
           wednesday: { open: newLab.operatingHours.start, close: newLab.operatingHours.end, isOpen: true },
@@ -160,1329 +106,538 @@ const ManageLabs = () => {
           friday: { open: newLab.operatingHours.start, close: newLab.operatingHours.end, isOpen: true },
           saturday: { open: newLab.operatingHours.start, close: newLab.operatingHours.end, isOpen: true },
           sunday: { open: newLab.operatingHours.start, close: newLab.operatingHours.end, isOpen: false }
-        }),
-        availableTests: JSON.stringify(newLab.availableTests),
-        availablePackages: JSON.stringify(newLab.availablePackages),
-        isActive: newLab.status === 'active'
-      }
-
-      // Log the data being sent for debugging
-      console.log('Sending lab data:', labData)
-
-      // Create lab
-      const response = await labAPI.createLab(labData)
-      
-      // Refresh labs list
-      await fetchLabs()
-      
-      // Close modal and reset form
-      setShowAddLabModal(false)
-      setNewLab({
-        name: '',
-        description: '',
-        address: '',
-        city: '',
-        state: '',
-        pincode: '',
-        phone: '',
-        email: '',
-        contact: '',
-        operatingHours: {
-          start: '',
-          end: ''
         },
-        availableTests: [],
-        availablePackages: [],
-        status: 'active'
-      })
-      
-      // Show success message
-      await Swal.fire({
-        icon: 'success',
-        title: 'Success!',
-        text: 'Lab created successfully!',
-        confirmButtonColor: '#2563eb',
-        confirmButtonText: 'OK'
-      })
-      
-    } catch (err) {
-      let errorMessage = 'Failed to create lab'
-      if (err.message) {
-        errorMessage = err.message
-      }
-      setError(errorMessage)
-      console.error('Error creating lab:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Handle update lab
-  const handleUpdateLab = async () => {
-    try {
-      setLoading(true)
-      setError('')
-      setFieldErrors({})
-      
-      // Validate required fields
-      const errors = {}
-      if (!newLab.name) errors.name = 'Lab name is required'
-      if (!newLab.address) errors.address = 'Address is required'
-      if (!newLab.city) errors.city = 'City is required'
-      if (!newLab.state) errors.state = 'State is required'
-      if (!newLab.pincode) errors.pincode = 'Pincode is required'
-      if (!newLab.phone) errors.phone = 'Phone number is required'
-      if (!newLab.email) errors.email = 'Email is required'
-      if (!newLab.operatingHours.start) errors.operatingHours = 'Operating hours are required'
-      if (!newLab.operatingHours.end) errors.operatingHours = 'Operating hours are required'
-      
-      if (Object.keys(errors).length > 0) {
-        setFieldErrors(errors)
-        setLoading(false)
-        return
-      }
-
-      // Prepare lab data with required fields (backend expects JSON strings for certain fields)
-      const labData = {
-        name: newLab.name,
-        description: newLab.description || 'Laboratory services and facilities',
-        address: JSON.stringify({
-          street: newLab.address,
-          city: newLab.city,
-          state: newLab.state,
-          zipCode: newLab.pincode, // Backend expects zipCode, not pincode
-          country: 'India'
-        }),
-        contact: JSON.stringify({
-          phone: newLab.phone,
-          email: newLab.email,
-          website: '' // Add website field as expected by backend
-        }),
-        operatingHours: JSON.stringify({
-          monday: { open: newLab.operatingHours.start, close: newLab.operatingHours.end, isOpen: true },
-          tuesday: { open: newLab.operatingHours.start, close: newLab.operatingHours.end, isOpen: true },
-          wednesday: { open: newLab.operatingHours.start, close: newLab.operatingHours.end, isOpen: true },
-          thursday: { open: newLab.operatingHours.start, close: newLab.operatingHours.end, isOpen: true },
-          friday: { open: newLab.operatingHours.start, close: newLab.operatingHours.end, isOpen: true },
-          saturday: { open: newLab.operatingHours.start, close: newLab.operatingHours.end, isOpen: true },
-          sunday: { open: newLab.operatingHours.start, close: newLab.operatingHours.end, isOpen: false }
-        }),
-        availableTests: JSON.stringify(newLab.availableTests),
-        availablePackages: JSON.stringify(newLab.availablePackages),
+        availableTests: newLab.availableTests,
+        availablePackages: newLab.availablePackages,
         isActive: newLab.status === 'active'
-      }
+      };
 
-      // Log the data being sent for debugging
-      console.log('Updating lab with data:', labData)
+      isUpdate ? await labAPI.updateLab(selectedLab._id, labData) : await labAPI.createLab(labData);
 
-      // Update lab
-      const response = await labAPI.updateLab(selectedLab._id, labData)
-      
-      console.log('Update response:', response)
-      
-      // Refresh labs list
-      await fetchLabs()
-      
-      // Close modal and reset form
-      setShowEditLabModal(false)
-      setSelectedLab(null)
-      setNewLab({
-        name: '',
-        description: '',
-        address: '',
-        city: '',
-        state: '',
-        pincode: '',
-        phone: '',
-        email: '',
-        contact: '',
-        operatingHours: {
-          start: '',
-          end: ''
-        },
-        availableTests: [],
-        availablePackages: [],
-        status: 'active'
-      })
-      
-      // Show success message
-      await Swal.fire({
+      fetchLabs();
+      setShowAddLabModal(false); setShowEditLabModal(false);
+      Swal.fire({
         icon: 'success',
-        title: 'Success!',
-        text: 'Lab updated successfully!',
-        confirmButtonColor: '#2563eb',
-        confirmButtonText: 'OK'
-      })
-      
+        title: 'Neural Node Sync',
+        text: `Facility node ${isUpdate ? 'calibrated' : 'integrated'} successfully.`,
+        confirmButtonColor: '#0f172a'
+      });
     } catch (err) {
-      let errorMessage = 'Failed to update lab'
-      if (err.message) {
-        errorMessage = err.message
-      }
-      setError(errorMessage)
-      console.error('Error updating lab:', err)
+      setError(err.message || 'Transmission failed.');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  // Handle delete lab
-  const handleDeleteLab = async (lab) => {
+  const handleDelete = async (lab) => {
     const result = await Swal.fire({
-      title: 'Delete Lab?',
-      text: `Are you sure you want to delete "${lab.name}"? This action cannot be undone.`,
+      title: 'Terminate Node?',
+      text: `Permanent decommissioning of ${lab.name} from global network.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#dc2626',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Yes, delete it!',
-      cancelButtonText: 'Cancel',
+      confirmButtonText: 'Yes, Terminate',
       reverseButtons: true
-    })
-    
+    });
+
     if (result.isConfirmed) {
       try {
-        await labAPI.deleteLab(lab._id)
-        await fetchLabs()
-        await Swal.fire({
-          icon: 'success',
-          title: 'Deleted!',
-          text: 'Lab deleted successfully!',
-          confirmButtonColor: '#2563eb',
-          confirmButtonText: 'OK'
-        })
+        await labAPI.deleteLab(lab._id);
+        fetchLabs();
+        Swal.fire({ icon: 'success', title: 'Node Deactivated', confirmButtonColor: '#0f172a' });
       } catch (err) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Error!',
-          text: err.message || 'Failed to delete lab',
-          confirmButtonColor: '#dc2626',
-          confirmButtonText: 'OK'
-        })
+        Swal.fire({ icon: 'error', title: 'Deactivation Failed', text: err.message });
       }
     }
-  }
+  };
 
-  // Toggle test selection
-  const toggleTestSelection = (testId) => {
-    setNewLab(prev => ({
-      ...prev,
-      availableTests: prev.availableTests.includes(testId)
-        ? prev.availableTests.filter(id => id !== testId)
-        : [...prev.availableTests, testId]
-    }))
-  }
+  const openEditModal = (lab) => {
+    setSelectedLab(lab);
+    setNewLab({
+      name: lab.name || '',
+      description: lab.description || '',
+      address: lab.address?.street || '',
+      city: lab.address?.city || '',
+      state: lab.address?.state || '',
+      pincode: lab.address?.zipCode || '',
+      phone: lab.contact?.phone || '',
+      email: lab.contact?.email || '',
+      operatingHours: {
+        start: lab.operatingHours?.monday?.open || '09:00',
+        end: lab.operatingHours?.monday?.close || '20:00'
+      },
+      availableTests: lab.availableTests?.map(t => typeof t === 'object' ? t._id : t) || [],
+      availablePackages: lab.availablePackages?.map(p => typeof p === 'object' ? p._id : p) || [],
+      status: lab.isActive ? 'active' : 'inactive',
+      lat: lab.location?.lat || 0,
+      lng: lab.location?.lng || 0,
+      imagePreview: lab.image ? (lab.image.startsWith('http') ? lab.image : `${(import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '')}/${lab.image.replace(/\\/g, '/')}`) : null,
+      image: null
+    });
+    setShowEditLabModal(true);
+  };
 
-  // Toggle package selection
-  const togglePackageSelection = (packageId) => {
-    setNewLab(prev => ({
-      ...prev,
-      availablePackages: prev.availablePackages.includes(packageId)
-        ? prev.availablePackages.filter(id => id !== packageId)
-        : [...prev.availablePackages, packageId]
-    }))
-  }
-
-  // Filter labs
   const filteredLabs = labs.filter(lab => {
-    const matchesSearch = lab.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         lab.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         lab.address.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    // Convert isActive boolean to status string for filtering
-    const labStatus = lab.isActive === true ? 'active' : 'inactive'
-    const matchesStatus = filterStatus === 'all' || labStatus === filterStatus
-    return matchesSearch && matchesStatus
-  })
+    const matchesSearch = (lab.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (lab.address?.city || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || (lab.isActive ? 'active' : 'inactive') === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
-    <div className="p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Manage Labs</h1>
-        <p className="text-gray-600">Configure laboratory locations and operational settings</p>
-      </div>
-
-      {/* Actions Bar */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative">
-              <Search className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search labs..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-full sm:w-64"
-              />
-            </div>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="space-y-10"
+    >
+      {/* Network Header */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-8">
+        <div>
+          <div className="flex items-center space-x-2 mb-4">
+            <span className="px-4 py-1.5 bg-slate-900 text-white text-[10px] font-black uppercase tracking-[0.3em] rounded-full shadow-xl shadow-slate-200">
+              Facility Network Node
+            </span>
+            <div className="h-0.5 w-16 bg-slate-200"></div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              Global Infrastructure Matrix
+            </span>
           </div>
-          <button
-            onClick={() => {
-              setNewLab({
-                name: '',
-                description: '',
-                address: '',
-                city: '',
-                state: '',
-                pincode: '',
-                phone: '',
-                email: '',
-                contact: '',
-                operatingHours: {
-                  start: '',
-                  end: ''
-                },
-                availableTests: [],
-                availablePackages: [],
-                status: 'active'
-              })
-              setFieldErrors({})
-              setError('')
-              setShowAddLabModal(true)
-            }}
-            className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Lab
-          </button>
+          <h1 className="text-5xl font-black text-slate-900 tracking-tighter uppercase mb-3 text-balance">
+            Clinical <span className="text-indigo-600">Facility</span> Network
+          </h1>
+          <p className="text-xl text-slate-500 font-medium max-w-2xl">
+            Monitoring the operational status and diagnostic capabilities of regional laboratory nodes.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-5">
+          <div className="bg-white p-6 rounded-[2rem] border border-slate-50 shadow-xl shadow-slate-100 flex items-center gap-4">
+            <div className="h-10 w-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+              <Globe2 size={20} />
+            </div>
+            <div>
+              <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none mb-1">Active Nodes</p>
+              <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">{labs.filter(l => l.isActive).length} / {labs.length}</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center">
-          <AlertCircle className="h-5 w-5 mr-2" />
-          {error}
+      {/* Control Bar */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="relative group flex-1">
+          <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300 group-hover:text-slate-900 transition-colors" />
+          <input
+            type="text"
+            placeholder="Identify Geographical Node..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-16 pr-8 py-6 bg-white border border-slate-50 rounded-[2.5rem] shadow-sm focus:ring-8 focus:ring-slate-900/5 transition-all text-sm font-bold placeholder:text-slate-200"
+          />
         </div>
-      )}
+        <div className="lg:w-64">
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="w-full px-8 py-6 bg-white border border-slate-50 rounded-[2.5rem] text-[10px] font-black uppercase tracking-widest focus:ring-8 focus:ring-slate-900/5 appearance-none cursor-pointer"
+          >
+            <option value="all">Network Status</option>
+            <option value="active">Online Node</option>
+            <option value="inactive">Offline Node</option>
+          </select>
+        </div>
+        <button
+          onClick={() => {
+            setNewLab({
+              name: '', description: '', address: '', city: '', state: '', pincode: '',
+              phone: '', email: '', operatingHours: { start: '09:00', end: '20:00' },
+              availableTests: [], availablePackages: [], status: 'active',
+              image: null, imagePreview: null
+            });
+            setShowAddLabModal(true);
+          }}
+          className="px-10 py-6 bg-slate-900 text-white rounded-[2.5rem] shadow-2xl shadow-slate-100 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-4 group"
+        >
+          <Plus className="h-5 w-5 group-hover:rotate-90 transition-transform" />
+          <span className="text-[11px] font-black uppercase tracking-[0.3em]">Integrate Node</span>
+        </button>
+      </div>
 
-      {/* Labs Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {loading ? (
-          <div className="col-span-full flex items-center justify-center py-12">
-            <Loader className="h-8 w-8 animate-spin mr-3" />
-            Loading labs...
+      {/* Helper function for image upload */}
+      {(() => {
+        if (!ManageLabs.handleImageUpload) {
+          ManageLabs.handleImageUpload = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+              if (file.size > 5 * 1024 * 1024) return Swal.fire('Error', 'Image size exceeds 5MB limit.', 'error');
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                setNewLab(prev => ({ ...prev, image: file, imagePreview: ev.target.result }));
+              };
+              reader.readAsDataURL(file);
+            }
+          };
+        }
+        return null;
+      })()}
+
+      {/* Network Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-32">
+        {loading && labs.length === 0 ? (
+          <div className="col-span-full py-32 flex flex-col items-center opacity-20">
+            <Loader className="h-10 w-10 animate-spin" />
+            <p className="mt-6 text-[10px] font-black uppercase tracking-[0.4em]">Calibrating Sensors...</p>
           </div>
         ) : filteredLabs.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-gray-500">
-            No labs found
+          <div className="col-span-full py-32 flex flex-col items-center opacity-20">
+            <Globe size={80} strokeWidth={1} />
+            <p className="mt-6 text-[10px] font-black uppercase tracking-[0.4em]">Network Spectrum Null</p>
           </div>
         ) : (
-          filteredLabs.map((lab) => (
-            <div key={lab._id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center">
-                    <div className="h-12 w-12 rounded-lg bg-primary-100 flex items-center justify-center">
-                      <Building2 className="h-6 w-6 text-primary-600" />
-                    </div>
-                    <div className="ml-4">
-                      <h3 className="text-lg font-semibold text-gray-900">{lab.name}</h3>
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        lab.isActive === true
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {lab.isActive === true ? 'Active' : 'Inactive'}
+          filteredLabs.map((lab, idx) => (
+            <motion.div
+              key={lab._id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.05 }}
+              className="bg-white rounded-[3.5rem] p-10 border border-slate-50 shadow-2xl shadow-slate-100 group flex flex-col relative overflow-hidden h-full"
+            >
+              <div className="flex justify-between items-start mb-8">
+                <div className="flex items-center gap-5">
+                  <div className="h-14 w-14 bg-slate-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                    <Building2 className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-2 truncate max-w-[150px]">{lab.name}</h4>
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2 w-2 rounded-full ${lab.isActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                      <span className={`text-[9px] font-black uppercase tracking-widest ${lab.isActive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {lab.isActive ? 'Node Online' : 'Transmission Offline'}
                       </span>
                     </div>
                   </div>
-                  <div className="flex space-x-2">
-                    <button 
-                      onClick={() => {
-                        setSelectedLab(lab)
-                        
-                        // Parse address if it's a string
-                        let parsedAddress = lab.address
-                        if (typeof lab.address === 'string') {
-                          try {
-                            parsedAddress = JSON.parse(lab.address)
-                          } catch (e) {
-                            parsedAddress = { street: lab.address, city: '', state: '', pincode: '' }
-                          }
-                        }
-                        
-                        // Parse contact if it's a string
-                        let parsedContact = lab.contact
-                        if (typeof lab.contact === 'string') {
-                          try {
-                            parsedContact = JSON.parse(lab.contact)
-                          } catch (e) {
-                            parsedContact = { phone: lab.contact, email: '', website: '' }
-                          }
-                        }
-                        
-                        // Parse operating hours if it's a string
-                        let parsedOperatingHours = lab.operatingHours
-                        if (typeof lab.operatingHours === 'string') {
-                          try {
-                            parsedOperatingHours = JSON.parse(lab.operatingHours)
-                          } catch (e) {
-                            parsedOperatingHours = { monday: { open: '09:00', close: '18:00', isOpen: true } }
-                          }
-                        }
-                        
-                        // Extract start and end times from operating hours (use Monday as default)
-                        const startTime = parsedOperatingHours?.monday?.open || '09:00'
-                        const endTime = parsedOperatingHours?.monday?.close || '18:00'
-                        
-                        // Parse availableTests and availablePackages if they are strings
-                        let parsedAvailableTests = lab.availableTests || []
-                        let parsedAvailablePackages = lab.availablePackages || []
-                        
-                        if (typeof lab.availableTests === 'string') {
-                          try {
-                            parsedAvailableTests = JSON.parse(lab.availableTests)
-                          } catch (e) {
-                            parsedAvailableTests = []
-                          }
-                        }
-                        
-                        if (typeof lab.availablePackages === 'string') {
-                          try {
-                            parsedAvailablePackages = JSON.parse(lab.availablePackages)
-                          } catch (e) {
-                            parsedAvailablePackages = []
-                          }
-                        }
-
-                        // Extract test IDs from test objects (if they're objects with _id) or keep as-is (if they're already IDs)
-                        const testIds = parsedAvailableTests.map(test => {
-                          if (typeof test === 'object' && test._id) {
-                            return test._id
-                          }
-                          return test
-                        })
-
-                        // Extract package IDs from package objects (if they're objects with _id) or keep as-is (if they're already IDs)
-                        const packageIds = parsedAvailablePackages.map(pkg => {
-                          if (typeof pkg === 'object' && pkg._id) {
-                            return pkg._id
-                          }
-                          return pkg
-                        })
-
-                        console.log('Setting form data - Test IDs:', testIds, 'Package IDs:', packageIds, 'isActive:', lab.isActive, 'Mapped Status:', lab.isActive === true ? 'active' : 'inactive')
-
-                        setNewLab({
-                          name: lab.name,
-                          description: lab.description || '',
-                          address: parsedAddress.street || '',
-                          city: parsedAddress.city || '',
-                          state: parsedAddress.state || '',
-                          pincode: parsedAddress.zipCode || parsedAddress.pincode || '',
-                          phone: parsedContact.phone || '',
-                          email: parsedContact.email || '',
-                          contact: parsedContact.phone || '',
-                          operatingHours: { start: startTime, end: endTime },
-                          availableTests: testIds,
-                          availablePackages: packageIds,
-                          status: lab.isActive === true ? 'active' : 'inactive'
-                        })
-                        setFieldErrors({})
-                        setError('')
-                        setShowEditLabModal(true)
-                      }}
-                      className="text-primary-600 hover:text-primary-900"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteLab(lab)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
                 </div>
-                
-                <div className="space-y-3">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <MapPin className="h-4 w-4 mr-2" />
-                    <span>
-                      {typeof lab.address === 'string' ? 
-                        (() => {
-                          try {
-                            const addr = JSON.parse(lab.address)
-                            return `${addr.street}, ${addr.city}, ${addr.state} - ${addr.zipCode || addr.pincode}`
-                          } catch (e) {
-                            return lab.address
-                          }
-                        })() : 
-                        `${lab.address.street}, ${lab.address.city}, ${lab.address.state} - ${lab.address.zipCode || lab.address.pincode}`
-                      }
-                    </span>
-                  </div>
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Phone className="h-4 w-4 mr-2" />
-                    <span>
-                      {typeof lab.contact === 'string' ? 
-                        (() => {
-                          try {
-                            const contact = JSON.parse(lab.contact)
-                            return contact.phone
-                          } catch (e) {
-                            return lab.contact
-                          }
-                        })() : 
-                        lab.contact.phone
-                      }
-                    </span>
-                  </div>
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Mail className="h-4 w-4 mr-2" />
-                    <span>
-                      {typeof lab.contact === 'string' ? 
-                        (() => {
-                          try {
-                            const contact = JSON.parse(lab.contact)
-                            return contact.email
-                          } catch (e) {
-                            return ''
-                          }
-                        })() : 
-                        lab.contact.email
-                      }
-                    </span>
-                  </div>
-                  {lab.operatingHours && (
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      <span>
-                        {typeof lab.operatingHours === 'string' ? 
-                          (() => {
-                            try {
-                              const hours = JSON.parse(lab.operatingHours)
-                              return `${hours.monday?.open || '09:00'} - ${hours.monday?.close || '18:00'}`
-                            } catch (e) {
-                              return lab.operatingHours
-                            }
-                          })() : 
-                          `${lab.operatingHours.monday?.open || '09:00'} - ${lab.operatingHours.monday?.close || '18:00'}`
-                        }
-                      </span>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-500">
-                      Tests: {(() => {
-                        let count = lab.availableTests?.length || 0
-                        if (typeof lab.availableTests === 'string') {
-                          try {
-                            const parsed = JSON.parse(lab.availableTests)
-                            count = parsed.length
-                          } catch (e) {
-                            count = 0
-                          }
-                        }
-                        return count
-                      })()}
-                    </span>
-                    <span className="text-gray-500">
-                      Packages: {(() => {
-                        let count = lab.availablePackages?.length || 0
-                        if (typeof lab.availablePackages === 'string') {
-                          try {
-                            const parsed = JSON.parse(lab.availablePackages)
-                            count = parsed.length
-                          } catch (e) {
-                            count = 0
-                          }
-                        }
-                        return count
-                      })()}
-                    </span>
-                  </div>
-                  
-                  {/* Show selected tests and packages */}
-                  {(() => {
-                    // Parse availableTests if it's a string
-                    let parsedTests = lab.availableTests || []
-                    if (typeof lab.availableTests === 'string') {
-                      try {
-                        parsedTests = JSON.parse(lab.availableTests)
-                      } catch (e) {
-                        parsedTests = []
-                      }
-                    }
-                    
-                    // Parse availablePackages if it's a string
-                    let parsedPackages = lab.availablePackages || []
-                    if (typeof lab.availablePackages === 'string') {
-                      try {
-                        parsedPackages = JSON.parse(lab.availablePackages)
-                      } catch (e) {
-                        parsedPackages = []
-                      }
-                    }
-                    
-                    // Debug logging
-                    console.log('Lab:', lab.name, 'Tests:', parsedTests, 'Packages:', parsedPackages)
-                    console.log('Available tests array:', tests.length, 'Available packages array:', packages.length)
-                    
-                    // Debug: Log the structure of first test and package objects
-                    if (parsedTests.length > 0) {
-                      console.log('First test object structure:', parsedTests[0])
-                    }
-                    if (parsedPackages.length > 0) {
-                      console.log('First package object structure:', parsedPackages[0])
-                    }
-                    
-                    // Get test names - handle both cases: objects with names or IDs to lookup
-                    const testNames = parsedTests
-                      .map(test => {
-                        // If test is an object with a name property, use it directly
-                        if (typeof test === 'object' && test.name) {
-                          return test.name
-                        }
-                        // If test is an ID string, look it up in the tests array
-                        if (typeof test === 'string') {
-                          const foundTest = tests.find(t => t._id === test)
-                          return foundTest ? foundTest.name : null
-                        }
-                        return null
-                      })
-                      .filter(name => name !== null)
-                      .slice(0, 3) // Show only first 3
-                    
-                    // Get package names - handle both cases: objects with names or IDs to lookup
-                    const packageNames = parsedPackages
-                      .map(pkg => {
-                        // If package is an object with a name property, use it directly
-                        if (typeof pkg === 'object' && pkg.name) {
-                          return pkg.name
-                        }
-                        // If package is an ID string, look it up in the packages array
-                        if (typeof pkg === 'string') {
-                          const foundPackage = packages.find(p => p._id === pkg)
-                          return foundPackage ? foundPackage.name : null
-                        }
-                        return null
-                      })
-                      .filter(name => name !== null)
-                      .slice(0, 3) // Show only first 3
-                    
-                    console.log('Test names found:', testNames, 'Package names found:', packageNames)
-                    
-                    return (parsedTests.length > 0 || parsedPackages.length > 0) && (
-                      <div className="space-y-2">
-                        <div className="space-y-1">
-                          {testNames.length > 0 && (
-                            <div>
-                              <span className="text-xs text-gray-400">Tests: </span>
-                              <span className="text-xs text-gray-600">
-                                {testNames.join(', ')}
-                                {parsedTests.length > 3 && ` +${parsedTests.length - 3} more`}
-                              </span>
-                            </div>
-                          )}
-                          {packageNames.length > 0 && (
-                            <div>
-                              <span className="text-xs text-gray-400">Packages: </span>
-                              <span className="text-xs text-gray-600">
-                                {packageNames.join(', ')}
-                                {parsedPackages.length > 3 && ` +${parsedPackages.length - 3} more`}
-                              </span>
-                            </div>
-                          )}
-                          {testNames.length === 0 && packageNames.length === 0 && (parsedTests.length > 0 || parsedPackages.length > 0) && (
-                            <div className="text-xs text-gray-400">
-                              Tests/Packages selected but names not found in database
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })()}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => openEditModal(lab)}
+                    className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-900 hover:text-white transition-all shadow-sm"
+                  >
+                    <Edit size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(lab)}
+                    className="p-3 bg-rose-500/10 text-rose-500 rounded-xl hover:bg-rose-500 transition-all shadow-sm group/del"
+                  >
+                    <Trash2 size={14} className="group-hover/del:text-white" />
+                  </button>
                 </div>
               </div>
-            </div>
+
+              <div className="flex-1 space-y-6 mb-10">
+                <div className="flex items-center gap-4">
+                  <MapPin size={16} className="text-indigo-400 shrink-0" />
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                    {lab.address?.city || 'Null Sector'}, {lab.address?.state || 'Grid'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 text-slate-400">
+                  <Smartphone size={14} className="shrink-0" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">{lab.contact?.phone || 'No Data'}</span>
+                </div>
+                <div className="flex items-center gap-4 text-slate-400">
+                  <Clock size={14} className="shrink-0" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">
+                    {lab.operatingHours?.monday?.open || '09:00'} - {lab.operatingHours?.monday?.close || '20:00'} Pulse
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-8 border-t border-slate-50 flex items-center justify-between">
+                <div className="flex gap-3">
+                  <div className="px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-widest">
+                    {lab.availableTests?.length || 0} Units
+                  </div>
+                  <div className="px-4 py-1.5 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest">
+                    {lab.availablePackages?.length || 0} Bundles
+                  </div>
+                </div>
+                <button
+                  onClick={() => openEditModal(lab)}
+                  className="h-10 w-10 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xl shadow-slate-100"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+
+              <div className="absolute -bottom-6 -right-6 opacity-[0.03] pointer-events-none">
+                <Network size={150} />
+              </div>
+            </motion.div>
           ))
         )}
       </div>
 
-      {/* Add Lab Modal */}
-      {showAddLabModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Add New Lab</h3>
+      {/* Add/Edit Lab Modal */}
+      <AnimatePresence>
+        {(showAddLabModal || showEditLabModal) && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-3xl z-[100] flex items-center justify-center p-6 lg:p-12">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-[4rem] w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col shadow-4xl border border-slate-100"
+            >
+              <div className="p-10 lg:p-16 flex justify-between items-center shrink-0 border-b border-slate-50">
+                <div>
+                  <h3 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-2">
+                    Node <span className="text-indigo-600">{showEditLabModal ? 'Calibration' : 'Integration'}</span>
+                  </h3>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Global Facility Parameters Matrix</p>
+                </div>
                 <button
-                  onClick={() => setShowAddLabModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  onClick={() => { setShowAddLabModal(false); setShowEditLabModal(false); }}
+                  className="p-6 bg-slate-50 text-slate-300 rounded-[2rem] hover:bg-slate-900 hover:text-white transition-all shadow-sm"
                 >
-                  <span className="sr-only">Close</span>
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X size={24} />
                 </button>
               </div>
-              
-              <div className="space-y-6">
-                {/* Basic Information */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Basic Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Lab Name</label>
-                      <input
-                        type="text"
-                        value={newLab.name}
-                        onChange={(e) => {
-                          setNewLab({...newLab, name: e.target.value})
-                          if (fieldErrors.name) {
-                            setFieldErrors(prev => ({...prev, name: ''}))
-                          }
-                        }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.name ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                      />
-                      {fieldErrors.name && (
-                        <p className="text-red-600 text-xs mt-1">{fieldErrors.name}</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                      <select
-                        value={newLab.status}
-                        onChange={(e) => setNewLab({...newLab, status: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                      >
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                      </select>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <textarea
-                      value={newLab.description}
-                      onChange={(e) => {
-                        setNewLab({...newLab, description: e.target.value})
-                        if (fieldErrors.description) {
-                          setFieldErrors(prev => ({...prev, description: ''}))
-                        }
-                      }}
-                      rows={3}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.description ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
-                      placeholder="Describe the lab services and facilities"
-                    />
-                    {fieldErrors.description && (
-                      <p className="text-red-600 text-xs mt-1">{fieldErrors.description}</p>
-                    )}
-                  </div>
-                </div>
 
-                {/* Address Information */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Address Information</h4>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                      <input
-                        type="text"
-                        value={newLab.address}
-                        onChange={(e) => {
-                          setNewLab({...newLab, address: e.target.value})
-                          if (fieldErrors.address) {
-                            setFieldErrors(prev => ({...prev, address: ''}))
-                          }
-                        }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.address ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                      />
-                      {fieldErrors.address && (
-                        <p className="text-red-600 text-xs mt-1">{fieldErrors.address}</p>
+              <div className="flex-1 overflow-y-auto p-10 lg:p-16 custom-scrollbar">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
+                  {/* Basic Spectrum */}
+                  <div className="space-y-10">
+                    <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.4em] border-l-4 border-indigo-600 pl-4">Operational Identity</h5>
+
+                    {/* Image Upload UI */}
+                    <div className="relative group rounded-[2.5rem] overflow-hidden bg-slate-50 h-64 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:bg-slate-100 transition-all">
+                      {newLab.imagePreview ? (
+                        <>
+                          <img src={newLab.imagePreview} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Upload className="text-white h-8 w-8" />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center gap-4 text-slate-300">
+                          <Camera size={48} strokeWidth={1} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Facility Visual Capture</span>
+                        </div>
                       )}
+                      <input type="file" onChange={ManageLabs.handleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+
+                    <div className="space-y-6">
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Facility Name</label>
+                        <input
+                          type="text"
+                          value={newLab.name}
+                          onChange={(e) => setNewLab({ ...newLab, name: e.target.value })}
+                          className="w-full px-8 py-5 bg-slate-50 border-none rounded-[1.5rem] text-sm font-bold text-slate-900 focus:ring-4 focus:ring-slate-900/5 transition-all shadow-inner"
+                          placeholder="e.g. NEURAL CORE LAB"
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Node Description</label>
+                        <textarea
+                          rows={3}
+                          value={newLab.description}
+                          onChange={(e) => setNewLab({ ...newLab, description: e.target.value })}
+                          className="w-full px-8 py-5 bg-slate-50 border-none rounded-[1.5rem] text-sm font-bold text-slate-900 focus:ring-4 focus:ring-slate-900/5 transition-all shadow-inner resize-none"
+                          placeholder="Clinical intelligence parameters..."
+                        />
+                      </div>
+                    </div>
+
+                    <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.4em] border-l-4 border-indigo-600 pl-4 pt-10">Geographical Vector</h5>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="col-span-2 space-y-3">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Street Vector</label>
+                        <input
+                          type="text"
+                          value={newLab.address}
+                          onChange={(e) => setNewLab({ ...newLab, address: e.target.value })}
+                          className="w-full px-8 py-5 bg-slate-50 border-none rounded-[1.5rem] text-sm font-bold text-slate-900 focus:ring-4 focus:ring-slate-900/5 shadow-inner"
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">City Node</label>
                         <input
                           type="text"
                           value={newLab.city}
-                          onChange={(e) => {
-                            setNewLab({...newLab, city: e.target.value})
-                            if (fieldErrors.city) {
-                              setFieldErrors(prev => ({...prev, city: ''}))
-                            }
-                          }}
-                          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                            fieldErrors.city ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                          }`}
+                          onChange={(e) => setNewLab({ ...newLab, city: e.target.value })}
+                          className="w-full px-8 py-5 bg-slate-50 border-none rounded-[1.5rem] text-sm font-bold text-slate-900 focus:ring-4 focus:ring-slate-900/5 shadow-inner"
                         />
-                        {fieldErrors.city && (
-                          <p className="text-red-600 text-xs mt-1">{fieldErrors.city}</p>
-                        )}
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">State Sector</label>
                         <input
                           type="text"
                           value={newLab.state}
-                          onChange={(e) => {
-                            setNewLab({...newLab, state: e.target.value})
-                            if (fieldErrors.state) {
-                              setFieldErrors(prev => ({...prev, state: ''}))
-                            }
-                          }}
-                          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                            fieldErrors.state ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                          }`}
+                          onChange={(e) => setNewLab({ ...newLab, state: e.target.value })}
+                          className="w-full px-8 py-5 bg-slate-50 border-none rounded-[1.5rem] text-sm font-bold text-slate-900 focus:ring-4 focus:ring-slate-900/5 shadow-inner"
                         />
-                        {fieldErrors.state && (
-                          <p className="text-red-600 text-xs mt-1">{fieldErrors.state}</p>
-                        )}
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Latitude Vector</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={newLab.lat}
+                          onChange={(e) => setNewLab({ ...newLab, lat: e.target.value })}
+                          className="w-full px-8 py-5 bg-slate-50 border-none rounded-[1.5rem] text-sm font-bold text-slate-900 focus:ring-4 focus:ring-slate-900/5 shadow-inner"
+                          placeholder="e.g. 12.9716"
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Longitude Vector</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={newLab.lng}
+                          onChange={(e) => setNewLab({ ...newLab, lng: e.target.value })}
+                          className="w-full px-8 py-5 bg-slate-50 border-none rounded-[1.5rem] text-sm font-bold text-slate-900 focus:ring-4 focus:ring-slate-900/5 shadow-inner"
+                          placeholder="e.g. 77.5946"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Technical Spectrum */}
+                  <div className="space-y-10">
+                    <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.4em] border-l-4 border-indigo-600 pl-4">Communication Uplink</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Phone Matrix</label>
                         <input
                           type="text"
-                          value={newLab.pincode}
-                          onChange={(e) => {
-                            setNewLab({...newLab, pincode: e.target.value})
-                            if (fieldErrors.pincode) {
-                              setFieldErrors(prev => ({...prev, pincode: ''}))
-                            }
-                          }}
-                          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                            fieldErrors.pincode ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                          }`}
+                          value={newLab.phone}
+                          onChange={(e) => setNewLab({ ...newLab, phone: e.target.value })}
+                          className="w-full px-8 py-5 bg-slate-50 border-none rounded-[1.5rem] text-sm font-bold text-slate-900 focus:ring-4 focus:ring-slate-900/5 shadow-inner"
                         />
-                        {fieldErrors.pincode && (
-                          <p className="text-red-600 text-xs mt-1">{fieldErrors.pincode}</p>
-                        )}
+                      </div>
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Email Protocol</label>
+                        <input
+                          type="email"
+                          value={newLab.email}
+                          onChange={(e) => setNewLab({ ...newLab, email: e.target.value })}
+                          className="w-full px-8 py-5 bg-slate-50 border-none rounded-[1.5rem] text-sm font-bold text-slate-900 focus:ring-4 focus:ring-slate-900/5 shadow-inner"
+                        />
                       </div>
                     </div>
-                  </div>
-                </div>
 
-                {/* Contact Information */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Contact Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                      <input
-                        type="tel"
-                        value={newLab.phone}
-                        onChange={(e) => {
-                          setNewLab({...newLab, phone: e.target.value})
-                          if (fieldErrors.phone) {
-                            setFieldErrors(prev => ({...prev, phone: ''}))
-                          }
-                        }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.phone ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                        placeholder="e.g., 09496268372"
-                      />
-                      {fieldErrors.phone && (
-                        <p className="text-red-600 text-xs mt-1">{fieldErrors.phone}</p>
-                      )}
+                    <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.4em] border-l-4 border-indigo-600 pl-4 pt-10">Operational Cycles</h5>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Cycle Initiation</label>
+                        <input
+                          type="time"
+                          value={newLab.operatingHours.start}
+                          onChange={(e) => setNewLab({ ...newLab, operatingHours: { ...newLab.operatingHours, start: e.target.value } })}
+                          className="w-full px-8 py-5 bg-slate-50 border-none rounded-[1.5rem] text-sm font-bold text-slate-900 focus:ring-4 focus:ring-slate-900/5 shadow-inner"
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Cycle Termination</label>
+                        <input
+                          type="time"
+                          value={newLab.operatingHours.end}
+                          onChange={(e) => setNewLab({ ...newLab, operatingHours: { ...newLab.operatingHours, end: e.target.value } })}
+                          className="w-full px-8 py-5 bg-slate-50 border-none rounded-[1.5rem] text-sm font-bold text-slate-900 focus:ring-4 focus:ring-slate-900/5 shadow-inner"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                      <input
-                        type="email"
-                        value={newLab.email}
-                        onChange={(e) => {
-                          setNewLab({...newLab, email: e.target.value})
-                          if (fieldErrors.email) {
-                            setFieldErrors(prev => ({...prev, email: ''}))
-                          }
-                        }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.email ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                      />
-                      {fieldErrors.email && (
-                        <p className="text-red-600 text-xs mt-1">{fieldErrors.email}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
 
-                {/* Operating Hours */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Operating Hours</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                      <input
-                        type="time"
-                        value={newLab.operatingHours.start}
-                        onChange={(e) => {
-                          setNewLab(prev => ({
-                            ...prev,
-                            operatingHours: { ...prev.operatingHours, start: e.target.value }
-                          }))
-                          if (fieldErrors.operatingHours) {
-                            setFieldErrors(prev => ({...prev, operatingHours: ''}))
-                          }
-                        }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.operatingHours ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                      />
+                    <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.4em] border-l-4 border-indigo-600 pl-4 pt-10">Diagnostic Spectrum</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Available Diagnostic Units</label>
+                        <div className="h-48 overflow-y-auto bg-slate-50 rounded-[1.5rem] p-6 space-y-2 shadow-inner border border-slate-100">
+                          {tests.map(test => (
+                            <label key={test._id} className="flex items-center gap-4 p-3 bg-white rounded-xl cursor-pointer hover:bg-indigo-50 transition-colors group">
+                              <input
+                                type="checkbox"
+                                checked={newLab.availableTests?.includes(test._id)}
+                                onChange={(e) => {
+                                  const updated = e.target.checked
+                                    ? [...(newLab.availableTests || []), test._id]
+                                    : (newLab.availableTests || []).filter(id => id !== test._id);
+                                  setNewLab({ ...newLab, availableTests: updated });
+                                }}
+                                className="h-5 w-5 rounded-lg border-slate-200 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <span className="text-xs font-bold text-slate-600 group-hover:text-indigo-600 transition-colors">{test.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Integrated Test Bundles</label>
+                        <div className="h-48 overflow-y-auto bg-slate-50 rounded-[1.5rem] p-6 space-y-2 shadow-inner border border-slate-100">
+                          {packages.map(pkg => (
+                            <label key={pkg._id} className="flex items-center gap-4 p-3 bg-white rounded-xl cursor-pointer hover:bg-emerald-50 transition-colors group">
+                              <input
+                                type="checkbox"
+                                checked={newLab.availablePackages?.includes(pkg._id)}
+                                onChange={(e) => {
+                                  const updated = e.target.checked
+                                    ? [...(newLab.availablePackages || []), pkg._id]
+                                    : (newLab.availablePackages || []).filter(id => id !== pkg._id);
+                                  setNewLab({ ...newLab, availablePackages: updated });
+                                }}
+                                className="h-5 w-5 rounded-lg border-slate-200 text-emerald-600 focus:ring-emerald-500"
+                              />
+                              <span className="text-xs font-bold text-slate-600 group-hover:text-emerald-600 transition-colors">{pkg.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-                      <input
-                        type="time"
-                        value={newLab.operatingHours.end}
-                        onChange={(e) => {
-                          setNewLab(prev => ({
-                            ...prev,
-                            operatingHours: { ...prev.operatingHours, end: e.target.value }
-                          }))
-                          if (fieldErrors.operatingHours) {
-                            setFieldErrors(prev => ({...prev, operatingHours: ''}))
-                          }
-                        }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.operatingHours ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                      />
-                    </div>
-                  </div>
-                  {fieldErrors.operatingHours && (
-                    <p className="text-red-600 text-xs mt-1">{fieldErrors.operatingHours}</p>
-                  )}
-                </div>
 
-                {/* Available Tests */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Available Tests</h4>
-                  <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-3">
-                    {tests.length === 0 ? (
-                      <p className="text-gray-500 text-sm">No tests available. Please add tests first.</p>
-                    ) : (
-                      tests.map((test) => (
-                        <label key={test._id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded">
-                          <input
-                            type="checkbox"
-                            checked={newLab.availableTests.includes(test._id)}
-                            onChange={() => toggleTestSelection(test._id)}
-                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                          />
-                          <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900">{test.name}</div>
-                            <div className="text-xs text-gray-500">₹{test.price} • {test.category}</div>
-                          </div>
-                        </label>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* Available Packages */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Available Packages</h4>
-                  <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-3">
-                    {packages.length === 0 ? (
-                      <p className="text-gray-500 text-sm">No packages available. Please add packages first.</p>
-                    ) : (
-                      packages.map((packageItem) => (
-                        <label key={packageItem._id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded">
-                          <input
-                            type="checkbox"
-                            checked={newLab.availablePackages.includes(packageItem._id)}
-                            onChange={() => togglePackageSelection(packageItem._id)}
-                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                          />
-                          <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900">{packageItem.name}</div>
-                            <div className="text-xs text-gray-500">₹{packageItem.price} • {packageItem.selectedTests?.length || 0} tests</div>
-                          </div>
-                        </label>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  onClick={() => setShowAddLabModal(false)}
-                  className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAddLab}
-                  disabled={loading}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                >
-                  {loading ? (
-                    <>
-                      <Loader className="h-4 w-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    'Add Lab'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Lab Modal */}
-      {showEditLabModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Edit Lab</h3>
-                <button
-                  onClick={() => setShowEditLabModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <span className="sr-only">Close</span>
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              
-              <div className="space-y-6">
-                {/* Basic Information */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Basic Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Lab Name</label>
-                      <input
-                        type="text"
-                        value={newLab.name}
-                        onChange={(e) => {
-                          setNewLab({...newLab, name: e.target.value})
-                          if (fieldErrors.name) {
-                            setFieldErrors(prev => ({...prev, name: ''}))
-                          }
-                        }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.name ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                      />
-                      {fieldErrors.name && (
-                        <p className="text-red-600 text-xs mt-1">{fieldErrors.name}</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                      <select
-                        value={newLab.status}
-                        onChange={(e) => setNewLab({...newLab, status: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    <div className="p-8 bg-slate-900 rounded-[2.5rem] text-white flex items-center justify-between border border-white/10 shadow-xl mt-10">
+                      <div className="flex items-center gap-5">
+                        <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${newLab.status === 'active' ? 'bg-emerald-400/20 text-emerald-400' : 'bg-rose-400/20 text-rose-400'}`}>
+                          <Activity size={24} />
+                        </div>
+                        <div>
+                          <h5 className="text-sm font-black uppercase tracking-tight mb-1">Network Presence</h5>
+                          <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Global Node Visibility Status</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setNewLab({ ...newLab, status: newLab.status === 'active' ? 'inactive' : 'active' })}
+                        className="h-10 w-20 bg-white/10 border border-white/20 rounded-full relative group transition-all"
                       >
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                      </select>
+                        <div className={`absolute top-1 h-8 w-8 bg-white rounded-full transition-transform ${newLab.status === 'active' ? 'left-11' : 'left-1'}`} />
+                      </button>
                     </div>
-                  </div>
-                  
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <textarea
-                      value={newLab.description}
-                      onChange={(e) => {
-                        setNewLab({...newLab, description: e.target.value})
-                        if (fieldErrors.description) {
-                          setFieldErrors(prev => ({...prev, description: ''}))
-                        }
-                      }}
-                      rows={3}
-                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                        fieldErrors.description ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
-                      placeholder="Describe the lab services and facilities"
-                    />
-                    {fieldErrors.description && (
-                      <p className="text-red-600 text-xs mt-1">{fieldErrors.description}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Address Information */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Address Information</h4>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                      <input
-                        type="text"
-                        value={newLab.address}
-                        onChange={(e) => {
-                          setNewLab({...newLab, address: e.target.value})
-                          if (fieldErrors.address) {
-                            setFieldErrors(prev => ({...prev, address: ''}))
-                          }
-                        }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.address ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                      />
-                      {fieldErrors.address && (
-                        <p className="text-red-600 text-xs mt-1">{fieldErrors.address}</p>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                        <input
-                          type="text"
-                          value={newLab.city}
-                          onChange={(e) => {
-                            setNewLab({...newLab, city: e.target.value})
-                            if (fieldErrors.city) {
-                              setFieldErrors(prev => ({...prev, city: ''}))
-                            }
-                          }}
-                          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                            fieldErrors.city ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                          }`}
-                        />
-                        {fieldErrors.city && (
-                          <p className="text-red-600 text-xs mt-1">{fieldErrors.city}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
-                        <input
-                          type="text"
-                          value={newLab.state}
-                          onChange={(e) => {
-                            setNewLab({...newLab, state: e.target.value})
-                            if (fieldErrors.state) {
-                              setFieldErrors(prev => ({...prev, state: ''}))
-                            }
-                          }}
-                          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                            fieldErrors.state ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                          }`}
-                        />
-                        {fieldErrors.state && (
-                          <p className="text-red-600 text-xs mt-1">{fieldErrors.state}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
-                        <input
-                          type="text"
-                          value={newLab.pincode}
-                          onChange={(e) => {
-                            setNewLab({...newLab, pincode: e.target.value})
-                            if (fieldErrors.pincode) {
-                              setFieldErrors(prev => ({...prev, pincode: ''}))
-                            }
-                          }}
-                          className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                            fieldErrors.pincode ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                          }`}
-                        />
-                        {fieldErrors.pincode && (
-                          <p className="text-red-600 text-xs mt-1">{fieldErrors.pincode}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Contact Information */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Contact Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                      <input
-                        type="tel"
-                        value={newLab.phone}
-                        onChange={(e) => {
-                          setNewLab({...newLab, phone: e.target.value})
-                          if (fieldErrors.phone) {
-                            setFieldErrors(prev => ({...prev, phone: ''}))
-                          }
-                        }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.phone ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                        placeholder="e.g., 09496268372"
-                      />
-                      {fieldErrors.phone && (
-                        <p className="text-red-600 text-xs mt-1">{fieldErrors.phone}</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                      <input
-                        type="email"
-                        value={newLab.email}
-                        onChange={(e) => {
-                          setNewLab({...newLab, email: e.target.value})
-                          if (fieldErrors.email) {
-                            setFieldErrors(prev => ({...prev, email: ''}))
-                          }
-                        }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.email ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                      />
-                      {fieldErrors.email && (
-                        <p className="text-red-600 text-xs mt-1">{fieldErrors.email}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Operating Hours */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Operating Hours</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                      <input
-                        type="time"
-                        value={newLab.operatingHours.start}
-                        onChange={(e) => {
-                          setNewLab(prev => ({
-                            ...prev,
-                            operatingHours: { ...prev.operatingHours, start: e.target.value }
-                          }))
-                          if (fieldErrors.operatingHours) {
-                            setFieldErrors(prev => ({...prev, operatingHours: ''}))
-                          }
-                        }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.operatingHours ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-                      <input
-                        type="time"
-                        value={newLab.operatingHours.end}
-                        onChange={(e) => {
-                          setNewLab(prev => ({
-                            ...prev,
-                            operatingHours: { ...prev.operatingHours, end: e.target.value }
-                          }))
-                          if (fieldErrors.operatingHours) {
-                            setFieldErrors(prev => ({...prev, operatingHours: ''}))
-                          }
-                        }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
-                          fieldErrors.operatingHours ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                        }`}
-                      />
-                    </div>
-                  </div>
-                  {fieldErrors.operatingHours && (
-                    <p className="text-red-600 text-xs mt-1">{fieldErrors.operatingHours}</p>
-                  )}
-                </div>
-
-                {/* Available Tests */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Available Tests</h4>
-                  <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-3">
-                    {tests.length === 0 ? (
-                      <p className="text-gray-500 text-sm">No tests available. Please add tests first.</p>
-                    ) : (
-                      tests.map((test) => (
-                        <label key={test._id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded">
-                          <input
-                            type="checkbox"
-                            checked={newLab.availableTests.includes(test._id)}
-                            onChange={() => toggleTestSelection(test._id)}
-                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                          />
-                          <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900">{test.name}</div>
-                            <div className="text-xs text-gray-500">₹{test.price} • {test.category}</div>
-                          </div>
-                        </label>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* Available Packages */}
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Available Packages</h4>
-                  <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-3">
-                    {packages.length === 0 ? (
-                      <p className="text-gray-500 text-sm">No packages available. Please add packages first.</p>
-                    ) : (
-                      packages.map((packageItem) => (
-                        <label key={packageItem._id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded">
-                          <input
-                            type="checkbox"
-                            checked={newLab.availablePackages.includes(packageItem._id)}
-                            onChange={() => togglePackageSelection(packageItem._id)}
-                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                          />
-                          <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900">{packageItem.name}</div>
-                            <div className="text-xs text-gray-500">₹{packageItem.price} • {packageItem.selectedTests?.length || 0} tests</div>
-                          </div>
-                        </label>
-                      ))
-                    )}
                   </div>
                 </div>
               </div>
-              
-              <div className="flex justify-end space-x-3 mt-6">
+
+              <div className="p-10 lg:p-16 border-t border-slate-50 bg-slate-50/50 flex justify-end shrink-0 gap-6">
                 <button
-                  onClick={() => setShowEditLabModal(false)}
-                  className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                  onClick={() => { setShowAddLabModal(false); setShowEditLabModal(false); }}
+                  className="px-10 py-5 bg-white border border-slate-100 text-slate-400 text-[11px] font-black uppercase tracking-[0.3em] rounded-[1.5rem] hover:bg-slate-900 hover:text-white transition-all shadow-sm"
                 >
-                  Cancel
+                  Abort Sequence
                 </button>
                 <button
-                  onClick={handleUpdateLab}
+                  onClick={() => handleAction(showEditLabModal)}
                   disabled={loading}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                  className="px-12 py-5 bg-slate-900 text-white text-[11px] font-black uppercase tracking-[0.4em] rounded-[1.5rem] shadow-2xl shadow-slate-200 hover:scale-[1.05] active:scale-95 transition-all flex items-center gap-4"
                 >
-                  {loading ? (
-                    <>
-                      <Loader className="h-4 w-4 mr-2 animate-spin" />
-                      Updating...
-                    </>
-                  ) : (
-                    'Update Lab'
-                  )}
+                  {loading ? <Loader className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                  {showEditLabModal ? 'Commit Calibration' : 'Initialize Node'}
                 </button>
               </div>
-            </div>
+            </motion.div>
           </div>
-        </div>
-      )}
-    </div>
-  )
-}
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
 
-export default ManageLabs
+export default ManageLabs;

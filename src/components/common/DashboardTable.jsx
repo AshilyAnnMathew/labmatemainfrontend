@@ -12,7 +12,8 @@ const DashboardTable = ({
     onSearch,
     searchValue,
     filters,
-    actions
+    actions,
+    rowClassName
 }) => {
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
@@ -81,7 +82,7 @@ const DashboardTable = ({
                         ) : (
                             // Data Rows
                             data.map((row, rowIndex) => (
-                                <tr key={`${row._id}-${rowIndex}`} className="hover:bg-gray-50 transition-colors">
+                                <tr key={`${row._id}-${rowIndex}`} className={`hover:bg-gray-50 transition-colors ${rowClassName ? rowClassName(row) : ''}`}>
                                     {columns.map((col, colIndex) => (
                                         <td key={colIndex} className={`px-6 py-4 whitespace-nowrap text-sm text-gray-700 ${col.cellClassName || ''}`}>
                                             {col.render ? col.render(row) : row[col.accessor]}
@@ -95,23 +96,46 @@ const DashboardTable = ({
             </div>
 
             {/* Pagination Footer */}
-            {pagination && (
+            {pagination && pagination.totalPages > 1 && (
                 <div className="bg-gray-50 px-6 py-3 border-t border-gray-200 flex items-center justify-between">
                     <div className="text-xs text-gray-500">
-                        Page <span className="font-medium">{pagination.currentPage}</span> of <span className="font-medium">{pagination.totalPages}</span>
+                        Showing <span className="font-medium">{((pagination.currentPage - 1) * (pagination.itemsPerPage || 8)) + 1}</span>–<span className="font-medium">{Math.min(pagination.currentPage * (pagination.itemsPerPage || 8), pagination.totalItems || 0)}</span> of <span className="font-medium">{pagination.totalItems || 0}</span> results
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-1">
                         <button
                             onClick={() => onPageChange(pagination.currentPage - 1)}
                             disabled={pagination.currentPage <= 1}
-                            className="p-1.5 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className="p-1.5 rounded-md hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                             <ChevronLeft className="h-4 w-4 text-gray-600" />
                         </button>
+                        {(() => {
+                            const pages = [];
+                            const total = pagination.totalPages;
+                            const current = pagination.currentPage;
+                            let start = Math.max(1, current - 2);
+                            let end = Math.min(total, start + 4);
+                            if (end - start < 4) start = Math.max(1, end - 4);
+                            for (let i = start; i <= end; i++) {
+                                pages.push(
+                                    <button
+                                        key={i}
+                                        onClick={() => onPageChange(i)}
+                                        className={`w-8 h-8 text-xs font-medium rounded-md transition-colors ${i === current
+                                            ? 'bg-primary-600 text-white shadow-sm'
+                                            : 'text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                    >
+                                        {i}
+                                    </button>
+                                );
+                            }
+                            return pages;
+                        })()}
                         <button
                             onClick={() => onPageChange(pagination.currentPage + 1)}
                             disabled={pagination.currentPage >= pagination.totalPages}
-                            className="p-1.5 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            className="p-1.5 rounded-md hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                             <ChevronRight className="h-4 w-4 text-gray-600" />
                         </button>
