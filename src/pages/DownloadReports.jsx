@@ -181,71 +181,406 @@ const DownloadReports = () => {
     if (booking.paymentStatus !== 'completed') {
       Swal.fire({ icon: 'warning', title: 'Vault Locked', text: 'Settlement required to extract PDF.', confirmButtonColor: '#2563eb' }); return
     }
-    // Main PDF logic remains stable but we enhance meta-data potentially. 
-    // Using the previous stable implementation for generation to ensure clinical accuracy.
-    // (Previous logic for jsPDF follows...)
 
     try {
       const doc = new jsPDF()
-      const pw = doc.internal.pageSize.getWidth(); const ph = doc.internal.pageSize.getHeight()
-      const ml = 15; const mr = pw - 15; const cw = mr - ml; let y = 0
-      const navy = [21, 55, 96]; const darkBlue = [30, 64, 175]; const teal = [13, 148, 136]
-      const lightGray = [248, 250, 252]; const medGray = [229, 231, 235]; const darkText = [31, 41, 55]
-      const red = [220, 38, 38]; const white = [255, 255, 255]
+      const pw = doc.internal.pageSize.getWidth()
+      const ph = doc.internal.pageSize.getHeight()
+      const ml = 14
+      const mr = pw - 14
+      const cw = mr - ml
+      let y = 0
 
-      const formatLabAddr = (a) => a ? (typeof a === 'string' ? a : [a.street, a.city, a.state, a.zipCode].filter(Boolean).join(', ')) : ''
+      // Color palette
+      const navy = [21, 55, 96]
+      const teal = [13, 148, 136]
+      const lightGray = [245, 247, 250]
+      const medGray = [209, 213, 219]
+      const darkText = [31, 41, 55]
+      const red = [220, 38, 38]
+      const green = [22, 163, 74]
+      const white = [255, 255, 255]
+      const blue = [37, 99, 235]
+      const amber = [217, 119, 6]
+
+      const labName = String(booking.labId?.name || 'DIAGNOSTIC LABORATORY').toUpperCase()
+      const labAddr = booking.labId?.address
+      const labContact = booking.labId?.contact
+      const formatLabAddr = (a) => a ? (typeof a === 'string' ? a : [a.street, a.city, a.state, a.zipCode].filter(Boolean).join(', ')) : 'Address on file'
+      const formatLabPhone = (c) => c ? (typeof c === 'string' ? c : c.phone || c.email || '') : ''
+      const formatLabEmail = (c) => c ? (typeof c === 'string' ? '' : c.email || '') : ''
+      const patientName = `${booking.userId?.firstName || ''} ${booking.userId?.lastName || ''}`.trim() || 'Patient'
+      const patientAge = booking.userId?.age || '—'
+      const patientGender = booking.userId?.gender || '—'
+      const reportId = `LM360-${booking._id.slice(-8).toUpperCase()}`
+      const appointmentDateStr = formatDate(booking.appointmentDate)
+      const reportGenDate = new Date().toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })
+      const reportGenTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+      const sampleId = booking.samples?.[0]?.sampleId || booking.sampleId || `SMP-${booking._id.slice(-6).toUpperCase()}`
+      const sampleType = booking.samples?.[0]?.sampleType || 'Blood'
+      const collectedAt = booking.samples?.[0]?.collectedAt ? new Date(booking.samples[0].collectedAt).toLocaleString('en-GB', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : appointmentDateStr
+
       const checkAbn = (v, r) => {
         if (!v || !r || isNaN(v)) return { abnormal: false, flag: '' }
         const p = r.replace(/\s/g, '').split('-')
         if (p.length === 2 && !isNaN(p[0]) && !isNaN(p[1])) {
           const nv = parseFloat(v), lo = parseFloat(p[0]), hi = parseFloat(p[1])
-          if (nv < lo) return { abnormal: true, flag: 'L' }
-          if (nv > hi) return { abnormal: true, flag: 'H' }
+          if (nv < lo) return { abnormal: true, flag: 'LOW' }
+          if (nv > hi) return { abnormal: true, flag: 'HIGH' }
         }
         return { abnormal: false, flag: '' }
       }
 
-      const addFooter = (n, t) => {
-        doc.setDrawColor(...medGray); doc.setLineWidth(0.3); doc.line(ml, ph - 20, mr, ph - 20)
-        doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(156, 163, 175)
-        doc.text('ELECTRONICALLY GENERATED CLINICAL DOCUMENT - SIGNATURE EXEMPT', ml, ph - 15)
-        doc.text(`Page ${n} of ${t}`, mr, ph - 15, { align: 'right' })
+      const checkPageBreak = (needed = 30) => {
+        if (y > ph - needed - 25) {
+          doc.addPage()
+          y = 20
+          return true
+        }
+        return false
       }
 
-      doc.setFillColor(...navy); doc.rect(0, 0, pw, 42, 'F')
-      doc.setTextColor(...white); doc.setFontSize(22); doc.setFont('helvetica', 'bold')
-      doc.text(String(booking.labId?.name || 'LABORATORY').toUpperCase(), pw / 2, 18, { align: 'center' })
+      const addFooter = (n, t) => {
+        // Bottom line
+        doc.setDrawColor(...medGray)
+        doc.setLineWidth(0.3)
+        doc.line(ml, ph - 28, mr, ph - 28)
+        doc.setFontSize(6.5)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(140, 140, 140)
+        doc.text('This is a computer-generated report and does not require a physical signature. For queries, contact the laboratory directly.', ml, ph - 23)
+        doc.text(`Report ID: ${reportId}  |  Generated: ${reportGenDate} ${reportGenTime}  |  LabMate360 Clinical Platform`, ml, ph - 18)
+        doc.text(`Page ${n} of ${t}`, mr, ph - 18, { align: 'right' })
+        // Thin teal bar at very bottom
+        doc.setFillColor(...teal)
+        doc.rect(0, ph - 12, pw, 12, 'F')
+        doc.setTextColor(...white)
+        doc.setFontSize(7)
+        doc.setFont('helvetica', 'bold')
+        doc.text('CONFIDENTIAL MEDICAL DOCUMENT  •  FOR AUTHORIZED USE ONLY', pw / 2, ph - 5, { align: 'center' })
+      }
 
-      doc.setFillColor(...teal); doc.rect(0, 42, pw, 2.5, 'F')
-      doc.setTextColor(...darkText); y = 60
+      // ============ PAGE 1: HEADER ============
+      // Navy banner
+      doc.setFillColor(...navy)
+      doc.rect(0, 0, pw, 48, 'F')
+      // Lab name
+      doc.setTextColor(...white)
+      doc.setFontSize(20)
+      doc.setFont('helvetica', 'bold')
+      doc.text(labName, pw / 2, 16, { align: 'center' })
+      // Lab subtitle
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.text('NABL Accredited  •  ISO 15189:2022 Certified  •  CAP Proficiency Tested', pw / 2, 25, { align: 'center' })
+      // Lab address & contact
+      doc.setFontSize(7)
+      const addrLine = formatLabAddr(labAddr)
+      doc.text(addrLine, pw / 2, 33, { align: 'center' })
+      const phoneLine = [formatLabPhone(labContact), formatLabEmail(labContact)].filter(Boolean).join('  |  ')
+      if (phoneLine) doc.text(phoneLine, pw / 2, 39, { align: 'center' })
 
-      doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.text('DIAGNOSTIC ARCHIVE', ml, y)
-      y += 10; doc.setFontSize(9); doc.setFont('helvetica', 'normal')
-      doc.text(`Patient: ${booking.userId?.firstName} ${booking.userId?.lastName}`, ml, y)
-      doc.text(`Report Date: ${formatDate(booking.appointmentDate)}`, mr, y, { align: 'right' })
+      // Teal accent bar
+      doc.setFillColor(...teal)
+      doc.rect(0, 48, pw, 3, 'F')
 
-      y += 15
+      // ============ REPORT TITLE ============
+      y = 60
+      doc.setFillColor(240, 245, 255)
+      doc.roundedRect(ml, y - 5, cw, 14, 2, 2, 'F')
+      doc.setTextColor(...navy)
+      doc.setFontSize(13)
+      doc.setFont('helvetica', 'bold')
+      doc.text('PATHOLOGY / DIAGNOSTIC TEST REPORT', pw / 2, y + 5, { align: 'center' })
+
+      // ============ PATIENT INFO BLOCK ============
+      y += 22
+      doc.setDrawColor(...navy)
+      doc.setLineWidth(0.5)
+      doc.line(ml, y, mr, y)
+      y += 6
+
+      const infoColW = cw / 2
+      const leftCol = ml + 2
+      const rightCol = ml + infoColW + 2
+      const labelStyle = () => { doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(100, 116, 139) }
+      const valueStyle = () => { doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...darkText) }
+
+      // Row 1
+      labelStyle(); doc.text('Patient Name', leftCol, y)
+      labelStyle(); doc.text('Report ID', rightCol, y)
+      y += 5
+      valueStyle(); doc.text(patientName, leftCol, y)
+      valueStyle(); doc.text(reportId, rightCol, y)
+      y += 9
+
+      // Row 2
+      labelStyle(); doc.text('Age / Gender', leftCol, y)
+      labelStyle(); doc.text('Sample ID / Barcode', rightCol, y)
+      y += 5
+      valueStyle(); doc.text(`${patientAge} yrs / ${String(patientGender).charAt(0).toUpperCase() + String(patientGender).slice(1)}`, leftCol, y)
+      valueStyle(); doc.text(String(sampleId), rightCol, y)
+      y += 9
+
+      // Row 3
+      labelStyle(); doc.text('Appointment Date', leftCol, y)
+      labelStyle(); doc.text('Sample Collected', rightCol, y)
+      y += 5
+      valueStyle(); doc.text(appointmentDateStr, leftCol, y)
+      valueStyle(); doc.text(collectedAt, rightCol, y)
+      y += 9
+
+      // Row 4
+      labelStyle(); doc.text('Sample Type', leftCol, y)
+      labelStyle(); doc.text('Report Generated', rightCol, y)
+      y += 5
+      valueStyle(); doc.text(sampleType, leftCol, y)
+      valueStyle(); doc.text(`${reportGenDate}, ${reportGenTime}`, rightCol, y)
+      y += 5
+
+      doc.setDrawColor(...navy)
+      doc.setLineWidth(0.5)
+      doc.line(ml, y, mr, y)
+
+      // ============ TEST RESULTS ============
+      y += 10
+      let totalParams = 0
+      let abnormalParams = 0
+      const abnormalFindings = []
+
       if (booking.testResults?.length > 0) {
-        booking.testResults.forEach((tr, i) => {
-          doc.setFillColor(...lightGray); doc.rect(ml, y, cw, 8, 'F')
-          doc.setFont('helvetica', 'bold'); doc.text(`Test ${i + 1}: ${String(tr.testId?.name || 'Diagnostic Sequence')}`, ml + 2, y + 6)
-          y += 15
-          tr.values?.forEach(v => {
+        booking.testResults.forEach((tr, testIndex) => {
+          checkPageBreak(50)
+
+          const testName = (booking.selectedTests || []).find(t =>
+            (t.testId?._id || t.testId)?.toString() === (tr.testId?._id || tr.testId)?.toString()
+          )?.testName || tr.testId?.name || `Test ${testIndex + 1}`
+
+          // Test section header
+          doc.setFillColor(...navy)
+          doc.roundedRect(ml, y, cw, 9, 1.5, 1.5, 'F')
+          doc.setTextColor(...white)
+          doc.setFontSize(9)
+          doc.setFont('helvetica', 'bold')
+          doc.text(`  ${testName.toUpperCase()}`, ml + 2, y + 6.5)
+
+          // Verified badge
+          if (tr.verifiedAt) {
+            doc.setFontSize(7)
+            doc.setFont('helvetica', 'normal')
+            doc.text('✓ VERIFIED', mr - 3, y + 6.5, { align: 'right' })
+          }
+          y += 14
+
+          // Table header
+          doc.setFillColor(230, 236, 244)
+          doc.rect(ml, y, cw, 8, 'F')
+          doc.setTextColor(71, 85, 105)
+          doc.setFontSize(7)
+          doc.setFont('helvetica', 'bold')
+          const colBiomarker = ml + 3
+          const colResult = ml + 80
+          const colUnit = ml + 108
+          const colRange = ml + 135
+          const colFlag = mr - 3
+          doc.text('INVESTIGATION', colBiomarker, y + 5.5)
+          doc.text('RESULT', colResult, y + 5.5)
+          doc.text('UNIT', colUnit, y + 5.5)
+          doc.text('REFERENCE RANGE', colRange, y + 5.5)
+          doc.text('FLAG', colFlag, y + 5.5, { align: 'right' })
+          y += 10
+
+          // Table rows
+          tr.values?.forEach((v, vi) => {
+            checkPageBreak(12)
+            totalParams++
             const abn = checkAbn(v.value, v.referenceRange)
-            doc.setFont('helvetica', 'normal'); doc.text(String(v.label || '-'), ml + 2, y)
+            if (abn.abnormal) {
+              abnormalParams++
+              abnormalFindings.push({ test: testName, param: v.label, value: v.value, unit: v.unit || '', range: v.referenceRange, flag: abn.flag })
+            }
+
+            // Alternate row background
+            if (vi % 2 === 0) {
+              doc.setFillColor(250, 251, 253)
+              doc.rect(ml, y - 4, cw, 8, 'F')
+            }
+            // Abnormal row highlight
+            if (abn.abnormal) {
+              doc.setFillColor(254, 242, 242)
+              doc.rect(ml, y - 4, cw, 8, 'F')
+            }
+
+            // Biomarker
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(8)
+            doc.setTextColor(...darkText)
+            doc.text(String(v.label || '—'), colBiomarker, y)
+
+            // Result (bold, red if abnormal)
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(8.5)
             if (abn.abnormal) doc.setTextColor(...red)
-            doc.text(String(v.value || '-'), ml + 60, y)
-            doc.setTextColor(...darkText); doc.text(String(v.referenceRange || '-'), mr - 2, y, { align: 'right' })
-            y += 7
+            else doc.setTextColor(...darkText)
+            doc.text(String(v.value || '—'), colResult, y)
+
+            // Unit
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(7.5)
+            doc.setTextColor(100, 116, 139)
+            doc.text(String(v.unit || ''), colUnit, y)
+
+            // Reference Range
+            doc.setTextColor(100, 116, 139)
+            doc.text(String(v.referenceRange || '—'), colRange, y)
+
+            // Flag
+            if (abn.abnormal) {
+              doc.setFont('helvetica', 'bold')
+              doc.setFontSize(7)
+              doc.setTextColor(...red)
+              doc.text(abn.flag, colFlag, y, { align: 'right' })
+            }
+
+            y += 8
           })
-          y += 5
+
+          // Bottom border for the test table
+          doc.setDrawColor(...medGray)
+          doc.setLineWidth(0.3)
+          doc.line(ml, y, mr, y)
+          y += 12
         })
       }
 
+      // ============ RESULTS SUMMARY ============
+      checkPageBreak(40)
+      doc.setFillColor(240, 245, 255)
+      doc.roundedRect(ml, y, cw, 22, 2, 2, 'F')
+      doc.setDrawColor(...blue)
+      doc.setLineWidth(0.4)
+      doc.roundedRect(ml, y, cw, 22, 2, 2, 'S')
+      doc.setTextColor(...navy)
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.text('SUMMARY', ml + 5, y + 7)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.setTextColor(...darkText)
+      doc.text(`Total Parameters Tested: ${totalParams}`, ml + 5, y + 14)
+      doc.text(`Within Normal Range: ${totalParams - abnormalParams}`, ml + 70, y + 14)
+      if (abnormalParams > 0) {
+        doc.setTextColor(...red)
+        doc.setFont('helvetica', 'bold')
+        doc.text(`Abnormal Values: ${abnormalParams}`, ml + 140, y + 14)
+      } else {
+        doc.setTextColor(...green)
+        doc.setFont('helvetica', 'bold')
+        doc.text('All Values Normal', ml + 140, y + 14)
+      }
+      y += 30
+
+      // ============ CLINICAL INTERPRETATION (if abnormal values) ============
+      if (abnormalFindings.length > 0) {
+        checkPageBreak(50)
+        doc.setFillColor(254, 249, 235)
+        doc.roundedRect(ml, y, cw, 10, 2, 2, 'F')
+        doc.setTextColor(...amber)
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'bold')
+        doc.text('⚠  CLINICAL NOTES — ABNORMAL VALUES DETECTED', ml + 5, y + 7)
+        y += 15
+
+        abnormalFindings.forEach((f, fi) => {
+          checkPageBreak(18)
+          doc.setFontSize(7.5)
+          doc.setFont('helvetica', 'bold')
+          doc.setTextColor(...red)
+          doc.text(`${fi + 1}. ${f.param} (${f.test})`, ml + 5, y)
+          y += 5
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(71, 85, 105)
+          const finding = f.flag === 'HIGH'
+            ? `Result ${f.value} ${f.unit} is above the reference range (${f.range}). Please consult with your physician for further evaluation.`
+            : `Result ${f.value} ${f.unit} is below the reference range (${f.range}). Clinical correlation is advised.`
+          const splitText = doc.splitTextToSize(finding, cw - 12)
+          doc.text(splitText, ml + 5, y)
+          y += splitText.length * 4 + 5
+        })
+        y += 5
+      }
+
+      // ============ RECOMMENDATIONS ============
+      checkPageBreak(35)
+      doc.setDrawColor(...medGray)
+      doc.setLineWidth(0.2)
+      doc.line(ml, y, mr, y)
+      y += 8
+      doc.setTextColor(...navy)
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      doc.text('RECOMMENDATIONS', ml + 2, y)
+      y += 6
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7.5)
+      doc.setTextColor(71, 85, 105)
+      const recs = [
+        '• Please correlate these test results clinically with the patients symptoms and medical history.',
+        '• Abnormal values (if any) are flagged as HIGH or LOW for quick reference.',
+        '• Follow-up tests may be recommended by your physician based on these results.',
+        '• Fasting status, medications, and time of collection may affect some test results.',
+        '• This report should be reviewed by a qualified healthcare professional.'
+      ]
+      recs.forEach(r => {
+        checkPageBreak(8)
+        doc.text(r, ml + 4, y)
+        y += 5
+      })
+
+      // ============ ATTESTATION / AUTHORIZATION ============
+      y += 8
+      checkPageBreak(40)
+      doc.setDrawColor(...navy)
+      doc.setLineWidth(0.5)
+      doc.line(ml, y, mr, y)
+      y += 12
+
+      // Two-column sign-off
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 116, 139)
+      doc.text('Tested By', ml + 5, y)
+      doc.text('Authorized Signatory', mr - 55, y)
+      y += 10
+      doc.setDrawColor(...medGray)
+      doc.setLineWidth(0.3)
+      doc.line(ml + 5, y, ml + 60, y)
+      doc.line(mr - 60, y, mr - 5, y)
+      y += 5
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7.5)
+      doc.setTextColor(...darkText)
+      doc.text('Lab Technician', ml + 5, y)
+      doc.text('Lab Director / Pathologist', mr - 55, y)
+      y += 4
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(6.5)
+      doc.setTextColor(140, 140, 140)
+      doc.text(labName, ml + 5, y)
+      doc.text(labName, mr - 55, y)
+
+      // ============ ADD FOOTERS TO ALL PAGES ============
       const tp = doc.internal.getNumberOfPages()
-      for (let i = 1; i <= tp; i++) { doc.setPage(i); addFooter(i, tp) }
-      doc.save(`ClinicalReport_${booking._id.slice(-8)}.pdf`)
-    } catch (err) { Swal.fire({ icon: 'error', title: 'Generation Aborted', text: 'PDF engine failure.' }) }
+      for (let i = 1; i <= tp; i++) {
+        doc.setPage(i)
+        addFooter(i, tp)
+      }
+
+      doc.save(`ClinicalReport_${reportId}.pdf`)
+    } catch (err) {
+      console.error('PDF generation error:', err)
+      Swal.fire({ icon: 'error', title: 'Generation Aborted', text: 'PDF engine failure. Please try again.' })
+    }
   }, [formatDate])
 
   const filteredBookings = useMemo(() => {
