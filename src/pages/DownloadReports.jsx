@@ -3,7 +3,7 @@ import {
   FileText, Download, Eye, Calendar, TestTube, Brain, Loader2, Search,
   Lock, CreditCard, AlertCircle, Package, ChevronDown, ChevronRight,
   Shield, AlertTriangle, Clock, CheckCircle, X, Beaker, ShieldCheck,
-  Activity, Share2, Info, ArrowRight, Star, ExternalLink, Zap
+  Activity, Share2, Info, ArrowRight, Star, ExternalLink, Zap, Layers
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
