@@ -16,7 +16,7 @@ import {
   ArrowRight,
   AlertCircle
 } from 'lucide-react'
-import { authAPI, setAuthToken, googleAuthAPI, checkEmailExists } from '../services/api'
+import { authAPI, googleAuthAPI, checkEmailExists } from '../services/api'
 
 import heroImg from '../assets/images/hero.png'
 
@@ -138,13 +138,35 @@ const SignUp = () => {
   }
 
   const validateForm = () => {
-    validateField('firstName', formData.firstName)
-    validateField('lastName', formData.lastName)
-    validateField('email', formData.email)
-    validateField('phone', formData.phone)
-    validateField('password', formData.password)
-    validateField('confirmPassword', formData.confirmPassword)
-    return Object.keys(errors).length === 0 && emailChecked && !isCheckingEmail
+    // Build fresh errors independently (don't rely on stale React state)
+    const freshErrors = {}
+    if (!formData.firstName.trim()) freshErrors.firstName = 'Required'
+    else if (formData.firstName.trim().length < 2) freshErrors.firstName = 'Min 2 chars'
+
+    if (!formData.lastName.trim()) freshErrors.lastName = 'Required'
+
+    if (!formData.email.trim()) freshErrors.email = 'Required'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) freshErrors.email = 'Invalid format'
+
+    if (!formData.phone.trim()) freshErrors.phone = 'Required'
+    else if (!/^[\+]?[0-9][\d]{7,15}$/.test(formData.phone.replace(/\s/g, ''))) freshErrors.phone = 'Invalid format'
+
+    if (!formData.password) freshErrors.password = 'Required'
+    else if (formData.password.length < 6) freshErrors.password = 'Min 6 chars'
+
+    if (!formData.confirmPassword) freshErrors.confirmPassword = 'Required'
+    else if (formData.confirmPassword !== formData.password) freshErrors.confirmPassword = 'No match'
+
+    if (Object.keys(freshErrors).length > 0) {
+      setErrors(freshErrors)
+      return false
+    }
+    if (!emailChecked || isCheckingEmail) {
+      setErrors(prev => ({ ...prev, email: 'Please wait for email check to complete' }))
+      return false
+    }
+    if (errors.email) return false
+    return true
   }
 
   const handleSubmit = async (e) => {
@@ -152,12 +174,13 @@ const SignUp = () => {
     if (!validateForm()) return
     setIsLoading(true)
     try {
-      const response = await authAPI.register(formData)
-      setAuthToken(response.data.token)
+      // Register returns { success, message, data: { user, requiresEmailVerification } }
+      // No token is returned at registration — user must verify email first
+      await authAPI.register(formData)
       localStorage.setItem('pendingEmail', formData.email)
       navigate('/verify-email', { state: { email: formData.email } })
     } catch (error) {
-      setErrors({ general: error.message || 'Registration failed.' })
+      setErrors({ general: error.message || 'Registration failed. Please try again.' })
     } finally {
       setIsLoading(false)
     }

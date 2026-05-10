@@ -51,9 +51,9 @@ const MentalWellness = () => {
                 <div>
                     <div className="inline-flex items-center space-x-2 bg-purple-50 px-4 py-2 rounded-xl mb-4 border border-purple-100">
                         <Sparkles className="h-4 w-4 text-purple-600" />
-                        <span className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Cognitive State Monitoring</span>
+                        <span className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Mental State Wellness</span>
                     </div>
-                    <h1 className="text-4xl lg:text-5xl font-black text-gray-900 tracking-tighter uppercase underline decoration-purple-100 decoration-8 underline-offset-8">Mental Equilibrium</h1>
+                    <h1 className="text-4xl lg:text-5xl font-black text-gray-900 tracking-tighter uppercase underline decoration-purple-100 decoration-8 underline-offset-8">Mental State</h1>
                     <p className="text-gray-400 font-bold mt-4 uppercase tracking-[0.2em] text-[11px]">Neuro-psychological tracking and wellness insights</p>
                 </div>
 
@@ -63,14 +63,14 @@ const MentalWellness = () => {
                         className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'assessment' ? 'bg-white shadow-xl text-purple-600' : 'text-gray-400 hover:text-gray-900'
                             }`}
                     >
-                        Neuro Scan
+                        Assessment
                     </button>
                     <button
                         onClick={() => setActiveTab('dashboard')}
                         className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'dashboard' ? 'bg-white shadow-xl text-purple-600' : 'text-gray-400 hover:text-gray-900'
                             }`}
                     >
-                        Insight Vault
+                        History
                     </button>
                 </div>
             </div>
@@ -104,47 +104,47 @@ const AssessmentWizard = ({ onSuccess }) => {
     const questions = [
         {
             key: 'stressLevel',
-            title: "Cortisol Response Assessment",
-            subtitle: "How profound is your current relaxation state?",
+            title: "Stress Level",
+            subtitle: "How balanced is your current stress and relaxation state",
             icon: Sun,
-            lowLabel: "Systemic Tension",
-            highLabel: "Deep Calm",
+            lowLabel: "Stressed",
+            highLabel: "Relaxed",
             desc: "Evaluation of physiological and psychological workload markers."
         },
         {
             key: 'sleepQuality',
-            title: "Circadian Integrity Scan",
-            subtitle: "Rate the restorative efficiency of your last rest cycle.",
+            title: "Sleep Quality",
+            subtitle: "How well did you sleep recently?",
             icon: Moon,
-            lowLabel: "Fragmented",
-            highLabel: "Optimized",
+            lowLabel: "Poor Sleep",
+            highLabel: "Good Sleep",
             desc: "Detection of REM cycle depth and awakening frequency."
         },
         {
             key: 'mood',
-            title: "Affective Polarity Test",
-            subtitle: "Quantify your overall emotional frequency today.",
+            title: "Mood Level",
+            subtitle: "How is your mood today.",
             icon: Smile,
-            lowLabel: "Negative Polarity",
-            highLabel: "Positive Polarity",
+            lowLabel: "Sad",
+            highLabel: "Happy",
             desc: "Assessment of neuro-transmitter balance and mood stability."
         },
         {
             key: 'anxiety',
-            title: "Neural Excitation Evaluation",
-            subtitle: "Level of anticipation regarding future temporal nodes?",
+            title: "Anxiety Level",
+            subtitle: "How anxious or worried do you feel?",
             icon: Activity,
-            lowLabel: "Hyper-Alert",
-            highLabel: "Serene",
+            lowLabel: "Calm",
+            highLabel: "Anxious",
             desc: "Monitoring of cognitive loops and future-oriented tension."
         },
         {
             key: 'focus',
-            title: "Cognitive Attentional Width",
+            title: "Concentration  Level",
             subtitle: "Assess your ability to maintain task-specific focus.",
             icon: Coffee,
-            lowLabel: "Diffused",
-            highLabel: "Laser Sharp",
+            lowLabel: "Hard to Concentrate",
+            highLabel: "Easy to Concentrate",
             desc: "Evaluation of distractions and executive function efficiency."
         }
     ];
@@ -230,7 +230,7 @@ const AssessmentWizard = ({ onSuccess }) => {
                         disabled={submitting}
                         className="bg-gray-950 hover:bg-black text-white px-10 py-5 rounded-[2rem] font-black text-[10px] uppercase tracking-widest shadow-xl shadow-gray-200 transition-all flex items-center gap-4 group"
                     >
-                        {step === questions.length - 1 ? (submitting ? 'Encrypting Data...' : 'Finalize Scan') : 'Advance Protocol'}
+                        {step === questions.length - 1 ? (submitting ? 'Encrypting Data...' : 'Submit ') : 'Next'}
                         {!submitting && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
                         {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                     </button>

@@ -8,7 +8,9 @@ const ProfileCompletionModal = ({ isOpen, onClose, onComplete, user }) => {
     gender: user?.gender || '',
     dateOfBirth: user?.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : '',
     address: user?.address || '',
-    emergencyContact: user?.emergencyContact || ''
+    emergencyContactName: user?.emergencyContact?.name || '',
+    emergencyContactPhone: user?.emergencyContact?.phone || '',
+    emergencyContactRelation: user?.emergencyContact?.relation || ''
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -72,7 +74,13 @@ const ProfileCompletionModal = ({ isOpen, onClose, onComplete, user }) => {
         gender: formData.gender,
         dateOfBirth: new Date(formData.dateOfBirth).toISOString(),
         address: formData.address || undefined,
-        emergencyContact: formData.emergencyContact || undefined
+        emergencyContact: (formData.emergencyContactName || formData.emergencyContactPhone || formData.emergencyContactRelation)
+          ? {
+              name: formData.emergencyContactName.trim(),
+              phone: formData.emergencyContactPhone.trim(),
+              relation: formData.emergencyContactRelation.trim()
+            }
+          : undefined
       }
 
       // Call API to update profile
@@ -208,18 +216,37 @@ const ProfileCompletionModal = ({ isOpen, onClose, onComplete, user }) => {
 
             {/* Emergency Contact */}
             <div>
-              <label htmlFor="emergencyContact" className="block text-sm font-medium text-gray-700 mb-1">
-                Emergency Contact
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Emergency Contact (optional)
               </label>
-              <input
-                type="text"
-                id="emergencyContact"
-                name="emergencyContact"
-                value={formData.emergencyContact}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Emergency contact person (optional)"
-              />
+              <div className="grid grid-cols-1 gap-2">
+                <input
+                  type="text"
+                  name="emergencyContactName"
+                  value={formData.emergencyContactName}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Contact name"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    name="emergencyContactRelation"
+                    value={formData.emergencyContactRelation}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Relation (e.g. Mother)"
+                  />
+                  <input
+                    type="tel"
+                    name="emergencyContactPhone"
+                    value={formData.emergencyContactPhone}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Phone number"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Buttons */}

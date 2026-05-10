@@ -359,11 +359,11 @@ const BookTests = () => {
 
           <div className="mt-8 pt-8 border-t border-gray-50 grid grid-cols-2 gap-4">
             <div className="flex flex-col">
-              <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Diagnostics</span>
+              <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Tests</span>
               <span className="text-[12px] font-black text-gray-900 uppercase tracking-tight">{lab.availableTests?.length || 0} Lines</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Bundles</span>
+              <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Packages</span>
               <span className="text-[12px] font-black text-gray-900 uppercase tracking-tight">{lab.availablePackages?.length || 0} Active</span>
             </div>
           </div>
@@ -373,7 +373,7 @@ const BookTests = () => {
           onClick={() => handleLabSelection(lab)}
           className="w-full bg-gray-50 group-hover:bg-blue-600 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 group-hover:text-white transition-all flex items-center justify-center space-x-3"
         >
-          <span>Initiate Booking</span>
+          <span>Book Now</span>
           <MoveRight className="h-4 w-4 group-hover:translate-x-2 transition-transform" />
         </button>
       </motion.div>
@@ -388,7 +388,7 @@ const BookTests = () => {
           <div>
             <div className="inline-flex items-center space-x-2 bg-blue-50 px-4 py-2 rounded-xl mb-4 border border-blue-100">
               <ShieldCheck className="h-4 w-4 text-blue-600" />
-              <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Certified Medical Facilities</span>
+              <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Medical Facilities</span>
             </div>
             <h1 className="text-4xl lg:text-5xl font-black text-gray-900 tracking-tighter uppercase underline decoration-blue-100 decoration-8 underline-offset-8">Diagnostic Hub</h1>
             <p className="text-gray-400 font-bold mt-6 uppercase tracking-[0.2em] text-[11px]">Book tests across our network of accredited laboratories</p>
@@ -501,7 +501,7 @@ const BookTests = () => {
                   {selectedLab.availablePackagesDetails?.length > 0 && (
                     <div className="space-y-6 pt-10">
                       <h3 className="text-[14px] font-black text-gray-900 uppercase tracking-[0.3em] flex items-center px-6">
-                        <Package className="h-4 w-4 mr-3 text-orange-600" /> Comprehensive Bundles
+                        <Package className="h-4 w-4 mr-3 text-orange-600" /> Comprehensive Packages
                       </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         {selectedLab.availablePackagesDetails.map(pkg => (
@@ -511,7 +511,7 @@ const BookTests = () => {
                             className={`p-10 rounded-[4rem] border transition-all cursor-pointer relative overflow-hidden group ${selectedPackages.includes(pkg._id) ? 'bg-gray-950 border-gray-950 shadow-2xl' : 'bg-white border-gray-100 hover:border-orange-200'}`}
                           >
                             <div className="relative z-10">
-                              <span className="text-[9px] font-black text-orange-500 bg-orange-50 px-3 py-1.5 rounded-full uppercase tracking-widest mb-6 inline-block">Pro Health Bundle</span>
+                              <span className="text-[9px] font-black text-orange-500 bg-orange-50 px-3 py-1.5 rounded-full uppercase tracking-widest mb-6 inline-block">Pro Health Packages</span>
                               <h4 className={`text-xl font-black uppercase tracking-tight mb-4 ${selectedPackages.includes(pkg._id) ? 'text-white' : 'text-gray-900'}`}>{pkg.name}</h4>
                               <div className="space-y-2 mb-10">
                                 {pkg.selectedTests?.slice(0, 3).map((t, idx) => (
@@ -544,7 +544,7 @@ const BookTests = () => {
               <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-[90%] max-w-5xl bg-white/90 backdrop-blur-xl border border-gray-100 shadow-2xl rounded-[3rem] p-6 z-[100] flex flex-col md:flex-row items-center justify-between gap-6 px-12">
                 <div className="flex flex-col md:flex-row md:items-center gap-6">
                   <div className="flex flex-col">
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Queue Load</span>
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1"> Load</span>
                     <div className="flex items-center gap-2">
                       <div className="h-2 w-16 bg-blue-100 rounded-full overflow-hidden"><div className="h-full w-2/3 bg-blue-600 rounded-full"></div></div>
                       <span className="text-[10px] font-black text-gray-900 uppercase">Moderate</span>
@@ -552,7 +552,7 @@ const BookTests = () => {
                   </div>
                   <div className="h-10 w-[1px] bg-gray-100 hidden md:block"></div>
                   <div className="flex flex-col">
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Cumulative Value</span>
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Total</span>
                     <span className="text-xl font-black text-blue-600 uppercase tracking-tight">₹{(selectedLab.availableTestsDetails?.filter(t => selectedTests.includes(t._id)).reduce((s, t) => s + t.price, 0) || 0) + (selectedLab.availablePackagesDetails?.filter(p => selectedPackages.includes(p._id)).reduce((s, p) => s + p.price, 0) || 0)}</span>
                   </div>
                 </div>
@@ -575,14 +575,14 @@ const BookTests = () => {
                 <div className="flex items-center space-x-6 mb-12">
                   <div className="h-16 w-16 bg-blue-50 rounded-[2rem] flex items-center justify-center text-blue-600"><Calendar className="h-8 w-8" /></div>
                   <div>
-                    <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tight">Temporal Synchronization</h2>
-                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">Select your clinical arrival window</p>
+                    <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tight">Select your Time slot</h2>
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">Select your arrival time</p>
                   </div>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-12">
                   <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 block px-2">Clinical Date</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 block px-2"> Date</label>
                     <input
                       type="date"
                       value={selectedDate}
@@ -597,7 +597,7 @@ const BookTests = () => {
                   </div>
 
                   <div className="space-y-6">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-2">Availability Matrix</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block px-2">Availability Slots</label>
                     <div className="grid grid-cols-3 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                       {getAvailableTimeSlots().map(time => (
                         <button
@@ -616,7 +616,7 @@ const BookTests = () => {
                 </div>
 
                 <div className="mt-16 pt-12 border-t border-gray-50 flex justify-between items-center">
-                  <button onClick={() => setBookingStep(2)} className="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-gray-900 transition-colors uppercase">Return to Inventory</button>
+                  <button onClick={() => setBookingStep(2)} className="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-gray-900 transition-colors uppercase">Return to tests</button>
                   <button
                     onClick={() => setBookingStep(4)}
                     disabled={!selectedDate || !selectedTime}
@@ -637,8 +637,8 @@ const BookTests = () => {
                 <div className="flex items-center space-x-6 mb-12">
                   <div className="h-16 w-16 bg-blue-50 rounded-[2rem] flex items-center justify-center text-blue-600"><CreditCard className="h-8 w-8" /></div>
                   <div>
-                    <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tight">Settlement Protocol</h2>
-                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">Select transaction routing method</p>
+                    <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tight">Payment Method</h2>
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">Select payment method</p>
                   </div>
                 </div>
 
@@ -650,7 +650,7 @@ const BookTests = () => {
                     <div className={`h-14 w-14 rounded-2xl flex items-center justify-center mb-10 ${paymentMethod === 'pay_now' ? 'bg-white/20' : 'bg-gray-50 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors'}`}>
                       <Wallet className="h-7 w-7" />
                     </div>
-                    <h3 className="text-xl font-black uppercase tracking-tight mb-2">Instant Settlement</h3>
+                    <h3 className="text-xl font-black uppercase tracking-tight mb-2">Pay Now</h3>
                     <p className={`text-[10px] font-black uppercase tracking-[0.15em] ${paymentMethod === 'pay_now' ? 'text-blue-100' : 'text-gray-400'}`}>Highly Secured Razorpay Integration</p>
                     {paymentMethod === 'pay_now' && <div className="absolute top-6 right-6"><CheckCircle className="h-6 w-6 text-white" /></div>}
                   </div>
@@ -662,7 +662,7 @@ const BookTests = () => {
                     <div className={`h-14 w-14 rounded-2xl flex items-center justify-center mb-10 ${paymentMethod === 'pay_later' ? 'bg-white/20' : 'bg-gray-50 group-hover:bg-gray-100 transition-colors'}`}>
                       <MapPin className="h-7 w-7" />
                     </div>
-                    <h3 className="text-xl font-black uppercase tracking-tight mb-2">On-Site Payment</h3>
+                    <h3 className="text-xl font-black uppercase tracking-tight mb-2">Pay  Later</h3>
                     <p className={`text-[10px] font-black uppercase tracking-[0.15em] ${paymentMethod === 'pay_later' ? 'text-gray-400' : 'text-gray-400'}`}>Finalize at Diagnostic Center</p>
                     {paymentMethod === 'pay_later' && <div className="absolute top-6 right-6"><CheckCircle className="h-6 w-6 text-blue-400" /></div>}
                   </div>
@@ -686,7 +686,7 @@ const BookTests = () => {
                     disabled={!paymentMethod}
                     className="bg-blue-600 text-white px-12 py-6 rounded-[2rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all disabled:opacity-30 disabled:shadow-none flex items-center space-x-3"
                   >
-                    <span>Finalize Protocol</span>
+                    <span>Finalize</span>
                     <MoveRight className="h-4 w-4" />
                   </button>
                 </div>
@@ -703,7 +703,7 @@ const BookTests = () => {
 
                 <div className="relative z-10 flex flex-col items-center">
                   <div className="h-24 w-24 bg-blue-600 rounded-[3rem] flex items-center justify-center mb-10 shadow-2xl shadow-blue-500/40"><ShieldCheck className="h-12 w-12" /></div>
-                  <h2 className="text-4xl font-black uppercase tracking-tight mb-4">Verification Sequence</h2>
+                  <h2 className="text-4xl font-black uppercase tracking-tight mb-4">Verification</h2>
                   <p className="text-gray-400 font-bold uppercase tracking-[0.3em] text-[11px] mb-16">Review your diagnostic session details</p>
 
                   <div className="w-full grid md:grid-cols-2 gap-8 text-left mb-16">
@@ -722,13 +722,13 @@ const BookTests = () => {
                   </div>
 
                   <div className="w-full flex flex-col md:flex-row gap-4">
-                    <button onClick={() => setBookingStep(4)} className="flex-1 py-7 border border-white/20 rounded-[2.5rem] font-black text-[11px] uppercase tracking-widest hover:bg-white/5 transition-all">Protocol Correction</button>
+                    <button onClick={() => setBookingStep(4)} className="flex-1 py-7 border border-white/20 rounded-[2.5rem] font-black text-[11px] uppercase tracking-widest hover:bg-white/5 transition-all">Choose another method</button>
                     <button
                       onClick={handleBooking}
                       disabled={loading}
                       className="flex-[2] py-7 bg-blue-600 rounded-[2.5rem] font-black text-[12px] uppercase tracking-[0.3em] text-white hover:bg-blue-700 transition-all shadow-2xl flex items-center justify-center space-x-4"
                     >
-                      {loading ? <Loader className="h-6 w-6 animate-spin" /> : <><CheckCircle className="h-6 w-6" /> <span>Launch Sequence</span></>}
+                      {loading ? <Loader className="h-6 w-6 animate-spin" /> : <><CheckCircle className="h-6 w-6" /> <span>Confirm Booking</span></>}
                     </button>
                   </div>
                 </div>

@@ -63,14 +63,14 @@ const RespiratoryWellness = () => {
                         className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'assessment' ? 'bg-white shadow-xl text-blue-600' : 'text-gray-400 hover:text-gray-900'
                             }`}
                     >
-                        Initiate Scan
+                        Start Scan
                     </button>
                     <button
                         onClick={() => setActiveTab('dashboard')}
                         className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'dashboard' ? 'bg-white shadow-xl text-blue-600' : 'text-gray-400 hover:text-gray-900'
                             }`}
                     >
-                        Diagnostic Logs
+                        History
                     </button>
                 </div>
             </div>
@@ -188,7 +188,7 @@ const AssessmentView = ({ onSuccess }) => {
                     onClick={startBreathingTest}
                     className="bg-gray-950 hover:bg-black text-white px-12 py-6 rounded-[2.5rem] font-black text-[12px] uppercase tracking-[0.3em] transition-all shadow-2xl shadow-gray-200"
                 >
-                    Initialize Protocol
+                    Start
                 </button>
             </div>
         );

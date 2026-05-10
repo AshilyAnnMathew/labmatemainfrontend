@@ -63,120 +63,269 @@ const DashboardOverview = () => {
     const generateConsolidatedReport = async () => {
         try {
             setGeneratingReport(true)
-            const bookingsRes = await bookingAPI.getBookings('all', 1, 100)
+
+            const [bookingsRes, vitalsRes] = await Promise.all([
+                bookingAPI.getBookings('all', 1, 100).catch(() => []),
+                vitalsAPI.getHistory().catch(() => [])
+            ])
+
             const publishedBookings = (bookingsRes?.data || bookingsRes || [])
                 .filter(b => b.status === 'result_published' || b.status === 'completed')
                 .sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate))
 
-            const vitalsRes = await vitalsAPI.getHistory()
             const vitalsHistory = (vitalsRes?.data || vitalsRes || [])
                 .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
+            const respScore = stats.latestRespiratoryScore
+            const mentalScore = stats.latestMentalScore
 
             const doc = new jsPDF()
             const pw = doc.internal.pageSize.getWidth()
             const ph = doc.internal.pageSize.getHeight()
-            const ml = 15
-            const mr = pw - 15
-            const cw = mr - ml
+            const ml = 15, mr = pw - 15, cw = mr - ml
             let y = 0
 
-            const navy = [21, 55, 96]
-            const darkBlue = [30, 64, 175]
-            const teal = [13, 148, 136]
-            const lightGray = [248, 250, 252]
-            const medGray = [229, 231, 235]
-            const darkText = [31, 41, 55]
-            const red = [220, 38, 38]
-            const white = [255, 255, 255]
+            const navy = [21, 55, 96], darkBlue = [30, 64, 175], teal = [13, 148, 136]
+            const lightGray = [248, 250, 252], medGray = [229, 231, 235]
+            const darkText = [31, 41, 55], red = [220, 38, 38], green = [22, 163, 74]
+            const white = [255, 255, 255], amber = [180, 100, 0]
 
-            const formatDate = (d) => new Date(d).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })
-            const formatDateTime = (d) => new Date(d).toLocaleString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+            const fmtDate = (d) => new Date(d).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })
+            const fmtDT = (d) => new Date(d).toLocaleString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
-            const isAbnormal = (val, rangeStr) => {
-                if (!val || !rangeStr || isNaN(val)) return false
+            const isAbn = (val, rangeStr) => {
+                if (!val || !rangeStr || isNaN(val)) return { abnormal: false, flag: '' }
                 const parts = rangeStr.replace(/\s/g, '').split('-')
                 if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                    const numVal = parseFloat(val), lo = parseFloat(parts[0]), hi = parseFloat(parts[1])
-                    return numVal < lo || numVal > hi
+                    const nv = parseFloat(val), lo = parseFloat(parts[0]), hi = parseFloat(parts[1])
+                    if (nv < lo) return { abnormal: true, flag: 'LOW' }
+                    if (nv > hi) return { abnormal: true, flag: 'HIGH' }
                 }
-                return false
+                return { abnormal: false, flag: '' }
             }
 
-            const checkPageBreak = (needed = 30) => {
-                if (y > ph - needed - 20) {
-                    doc.addPage()
-                    y = 20
-                    return true
-                }
+            const checkPB = (needed = 30) => {
+                if (y > ph - needed - 20) { doc.addPage(); y = 20; return true }
                 return false
             }
 
             const addFooter = (curr, total) => {
-                doc.setDrawColor(...medGray)
-                doc.setLineWidth(0.3)
+                doc.setDrawColor(...medGray); doc.setLineWidth(0.3)
                 doc.line(ml, ph - 20, mr, ph - 20)
-                doc.setFontSize(7)
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(120, 120, 120)
                 doc.text('Consolidated Health Report - LabMate360', ml, ph - 15)
-                doc.text(`Generated on ${new Date().toLocaleDateString()}`, ml, ph - 11)
+                doc.text(`Generated: ${new Date().toLocaleString()}`, ml, ph - 11)
                 doc.text(`Page ${curr} of ${total}`, mr, ph - 15, { align: 'right' })
             }
 
-            doc.setFillColor(...navy)
-            doc.rect(0, 0, pw, 50, 'F')
-            doc.setTextColor(...white)
-            doc.setFontSize(24)
-            doc.setFont('helvetica', 'bold')
-            doc.text('CONSOLIDATED HEALTH REPORT', pw / 2, 28, { align: 'center' })
-            doc.setFontSize(10)
-            doc.text('Comprehensive Wellness Summary & Medical History', pw / 2, 38, { align: 'center' })
+            // ── HEADER ──
+            doc.setFillColor(...navy); doc.rect(0, 0, pw, 50, 'F')
+            doc.setFillColor(...teal); doc.rect(0, 50, pw, 3, 'F')
+            doc.setTextColor(...white); doc.setFont('helvetica', 'bold')
+            doc.setFontSize(22); doc.text('CONSOLIDATED HEALTH REPORT', pw / 2, 24, { align: 'center' })
+            doc.setFontSize(10); doc.setFont('helvetica', 'normal')
+            doc.text('Comprehensive Wellness Summary & Medical History', pw / 2, 35, { align: 'center' })
+            doc.setFontSize(8)
+            doc.text(`Generated: ${fmtDT(new Date())}`, pw / 2, 44, { align: 'center' })
 
-            y = 70
-            doc.setTextColor(...darkText)
-            doc.setFontSize(14)
-            doc.text('PATIENT PROFILE', ml, y)
-            y += 8
-            doc.line(ml, y, mr, y)
-            y += 10
+            // ── PATIENT PROFILE ──
+            y = 65
+            doc.setTextColor(...darkText); doc.setFont('helvetica', 'bold'); doc.setFontSize(13)
+            doc.text('PATIENT PROFILE', ml, y); y += 6
+            doc.setDrawColor(...navy); doc.setLineWidth(0.5); doc.line(ml, y, mr, y); y += 8
 
-            doc.setFontSize(10)
-            doc.setFont('helvetica', 'bold')
-            doc.text('Name:', ml, y)
-            doc.setFont('helvetica', 'normal')
-            doc.text(`${user?.firstName} ${user?.lastName}`, ml + 25, y)
-            y += 8
-            doc.setFont('helvetica', 'bold')
-            doc.text('Age / Gender:', ml, y)
-            doc.setFont('helvetica', 'normal')
-            doc.text(`${user?.age || '—'} / ${user?.gender || '—'}`, ml + 25, y)
-            y += 40
+            const patName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Patient'
+            const patAge = user?.age || '—'
+            const patGender = user?.gender || '—'
 
-            if (stats.vitals) {
-                doc.setFillColor(...lightGray)
-                doc.roundedRect(ml, y, cw, 35, 2, 2, 'F')
-                doc.setFontSize(11)
-                doc.setTextColor(...darkBlue)
-                doc.text('LATEST VITALS SUMMARY', ml + 5, y + 8)
-                y += 50
+            const lbl = () => { doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(100, 116, 139) }
+            const val = () => { doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...darkText) }
+
+            lbl(); doc.text('Full Name', ml, y); lbl(); doc.text('Age / Gender', ml + cw / 2, y); y += 5
+            val(); doc.text(patName, ml, y); val(); doc.text(`${patAge} / ${patGender}`, ml + cw / 2, y); y += 12
+
+            // ── LATEST VITALS BOX ──
+            checkPB(55)
+            doc.setFillColor(...lightGray); doc.roundedRect(ml, y, cw, 48, 2, 2, 'F')
+            doc.setDrawColor(...medGray); doc.setLineWidth(0.3); doc.roundedRect(ml, y, cw, 48, 2, 2, 'S')
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...darkBlue)
+            doc.text('LATEST VITALS SUMMARY', ml + 5, y + 9)
+
+            const vY = y + 20
+            const col3 = cw / 3
+
+            // Heart Rate
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(100, 116, 139)
+            doc.text('Heart Rate', ml + 5, vY)
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(17); doc.setTextColor(...darkText)
+            doc.text(stats.vitals?.ppg?.heartRate ? `${stats.vitals.ppg.heartRate} BPM` : '— BPM', ml + 5, vY + 10)
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(100, 116, 139)
+            doc.text('Normal: 60–100 BPM', ml + 5, vY + 17)
+
+            // Blood Pressure
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(100, 116, 139)
+            doc.text('Blood Pressure', ml + col3 + 5, vY)
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(17); doc.setTextColor(...darkText)
+            doc.text(stats.vitals?.bloodPressure?.value || '— mmHg', ml + col3 + 5, vY + 10)
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(100, 116, 139)
+            doc.text('Normal: <120/80 mmHg', ml + col3 + 5, vY + 17)
+
+            // SpO2
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(100, 116, 139)
+            doc.text('Oxygen Saturation', ml + col3 * 2 + 5, vY)
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(17); doc.setTextColor(...darkText)
+            doc.text(stats.vitals?.ppg?.spo2 ? `${stats.vitals.ppg.spo2}%` : '—%', ml + col3 * 2 + 5, vY + 10)
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(100, 116, 139)
+            doc.text('Normal: 95–100%', ml + col3 * 2 + 5, vY + 17)
+
+            y += 58
+
+            // ── WELLNESS SCORES ──
+            if (respScore !== null || mentalScore !== null) {
+                checkPB(40)
+                doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...navy)
+                doc.text('WELLNESS INDICES', ml, y); y += 6
+                doc.setDrawColor(...medGray); doc.setLineWidth(0.3); doc.line(ml, y, mr, y); y += 8
+
+                const halfW = (cw - 8) / 2
+                if (respScore !== null) {
+                    doc.setFillColor(238, 242, 255); doc.roundedRect(ml, y, halfW, 24, 2, 2, 'F')
+                    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(99, 102, 241)
+                    doc.text('Respiratory Wellness Score', ml + 4, y + 8)
+                    doc.setFontSize(16); doc.setTextColor(...darkText)
+                    doc.text(`${respScore}`, ml + 4, y + 19)
+                }
+                if (mentalScore !== null) {
+                    doc.setFillColor(245, 243, 255); doc.roundedRect(ml + halfW + 8, y, halfW, 24, 2, 2, 'F')
+                    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(109, 40, 217)
+                    doc.text('Mental Wellness Score', ml + halfW + 12, y + 8)
+                    doc.setFontSize(16); doc.setTextColor(...darkText)
+                    doc.text(`${mentalScore}`, ml + halfW + 12, y + 19)
+                }
+                y += 34
             }
 
+            // ── PPG VITALS HISTORY TABLE ──
             if (vitalsHistory.length > 0) {
-                checkPageBreak(60)
-                doc.setFontSize(12)
-                doc.setTextColor(...navy)
-                doc.text('VITALS HISTORY', ml, y)
-                y += 6
-                y += 70
+                checkPB(60)
+                doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...navy)
+                doc.text('PPG VITALS HISTORY', ml, y); y += 6
+                doc.setDrawColor(...medGray); doc.setLineWidth(0.3); doc.line(ml, y, mr, y); y += 6
+
+                doc.setFillColor(...navy); doc.rect(ml, y, cw, 8, 'F')
+                doc.setTextColor(...white); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5)
+                doc.text('Date & Time', ml + 3, y + 5.5)
+                doc.text('Heart Rate', ml + 68, y + 5.5)
+                doc.text('SpO2', ml + 108, y + 5.5)
+                doc.text('Quality', ml + 148, y + 5.5)
+                y += 10
+
+                vitalsHistory.slice(0, 15).forEach((v, vi) => {
+                    checkPB(10)
+                    if (vi % 2 === 0) { doc.setFillColor(248, 250, 252); doc.rect(ml, y - 4, cw, 8, 'F') }
+                    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...darkText)
+                    doc.text(v.createdAt ? fmtDT(v.createdAt) : '—', ml + 3, y)
+                    doc.text(v.heartRate ? `${v.heartRate} BPM` : '—', ml + 68, y)
+                    doc.text(v.spo2 ? `${v.spo2}%` : '—', ml + 108, y)
+                    doc.text(v.signalQuality || v.quality || '—', ml + 148, y)
+                    y += 8
+                })
+                y += 8
             }
 
-            const total = doc.internal.getNumberOfPages()
-            for (let i = 1; i <= total; i++) {
-                doc.setPage(i)
-                addFooter(i, total)
+            // ── LAB TEST RESULTS ──
+            checkPB(50)
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...navy)
+            doc.text('LABORATORY TEST RESULTS', ml, y); y += 6
+            doc.setDrawColor(...navy); doc.setLineWidth(0.5); doc.line(ml, y, mr, y); y += 10
+
+            if (publishedBookings.length > 0) {
+                publishedBookings.forEach((booking, bi) => {
+                    checkPB(50)
+
+                    // Booking banner
+                    doc.setFillColor(...navy); doc.roundedRect(ml, y, cw, 10, 1.5, 1.5, 'F')
+                    doc.setTextColor(...white); doc.setFont('helvetica', 'bold'); doc.setFontSize(9)
+                    doc.text(`${bi + 1}. ${booking.labId?.name || 'Lab'}  —  ${fmtDate(booking.appointmentDate)}`, ml + 4, y + 7)
+                    y += 14
+
+                    // Test list
+                    const tests = (booking.selectedTests || []).map(t => t.testName || t.testId?.name).filter(Boolean)
+                    const pkgs = (booking.selectedPackages || []).map(p => p.packageName || p.packageId?.name).filter(Boolean)
+                    const testList = [...pkgs, ...tests].join(', ') || 'Diagnostic Tests'
+                    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100, 116, 139)
+                    const splitTL = doc.splitTextToSize(`Tests: ${testList}`, cw - 4)
+                    doc.text(splitTL, ml + 2, y)
+                    y += splitTL.length * 4.5 + 4
+
+                    if (booking.testResults && booking.testResults.length > 0) {
+                        booking.testResults.forEach((tr, ti) => {
+                            checkPB(40)
+
+                            const testName = (booking.selectedTests || []).find(t =>
+                                (t.testId?._id || t.testId)?.toString() === (tr.testId?._id || tr.testId)?.toString()
+                            )?.testName || tr.testId?.name || `Test ${ti + 1}`
+
+                            // Sub-test header row
+                            doc.setFillColor(230, 236, 244); doc.rect(ml, y, cw, 7, 'F')
+                            doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...darkText)
+                            doc.text(testName.toUpperCase(), ml + 3, y + 5)
+                            y += 9
+
+                            // Column headers
+                            doc.setFillColor(245, 247, 250); doc.rect(ml, y, cw, 7, 'F')
+                            doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(71, 85, 105)
+                            doc.text('Parameter', ml + 3, y + 5)
+                            doc.text('Result', ml + 82, y + 5)
+                            doc.text('Unit', ml + 114, y + 5)
+                            doc.text('Reference', ml + 142, y + 5)
+                            doc.text('Flag', mr - 3, y + 5, { align: 'right' })
+                            y += 9
+
+                            ;(tr.values || []).forEach((v, vi) => {
+                                checkPB(10)
+                                const { abnormal, flag } = isAbn(v.value, v.referenceRange)
+                                if (vi % 2 === 0) { doc.setFillColor(250, 251, 253); doc.rect(ml, y - 4, cw, 8, 'F') }
+                                if (abnormal) { doc.setFillColor(254, 242, 242); doc.rect(ml, y - 4, cw, 8, 'F') }
+
+                                doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...darkText)
+                                doc.text(String(v.label || '—'), ml + 3, y)
+                                doc.setFont('helvetica', 'bold')
+                                if (abnormal) doc.setTextColor(...red); else doc.setTextColor(...darkText)
+                                doc.text(String(v.value || '—'), ml + 82, y)
+                                doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(100, 116, 139)
+                                doc.text(String(v.unit || ''), ml + 114, y)
+                                doc.text(String(v.referenceRange || '—'), ml + 142, y)
+                                if (abnormal) {
+                                    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...red)
+                                    doc.text(flag, mr - 3, y, { align: 'right' })
+                                }
+                                y += 8
+                            })
+
+                            doc.setDrawColor(...medGray); doc.setLineWidth(0.2); doc.line(ml, y, mr, y); y += 8
+                        })
+                    } else {
+                        doc.setFont('helvetica', 'italic'); doc.setFontSize(8); doc.setTextColor(150, 150, 150)
+                        doc.text('No detailed test values available for this booking.', ml + 3, y)
+                        y += 10
+                    }
+                    y += 6
+                })
+            } else {
+                doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(150, 150, 150)
+                doc.text('No published lab results found.', ml, y)
+                y += 15
             }
+
+            // ── FOOTERS ──
+            const totalPages = doc.internal.getNumberOfPages()
+            for (let i = 1; i <= totalPages; i++) { doc.setPage(i); addFooter(i, totalPages) }
+
             doc.save(`Consolidated_Health_Report_${user?.firstName || 'Patient'}.pdf`)
         } catch (err) {
             console.error('Report Error:', err)
-            Swal.fire({ icon: 'error', title: 'Fail', text: 'Report generation failed.' });
+            Swal.fire({ icon: 'error', title: 'Report Failed', text: err.message || 'Report generation failed.' })
         } finally {
             setGeneratingReport(false)
         }

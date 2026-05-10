@@ -192,11 +192,11 @@ const UserDashboard = () => {
       label: 'Nearby Labs',
       icon: MapPin
     },
-    {
-      path: '/user/dashboard/ppg-technology',
-      label: 'PPG Technology',
-      icon: Heart
-    },
+    // {
+    //   path: '/user/dashboard/ppg-technology',
+    //   label: 'PPG Technology',
+    //   icon: Heart
+    // },
     {
       path: '/user/dashboard/healthbot',
       label: 'HealthBot',
@@ -212,7 +212,7 @@ const UserDashboard = () => {
   // HealthBot Component
   const HealthBot = () => {
     // API key constant - fallback for environment variable
-    const API_KEY = 'AIzaSyAywhccPmyHxbbK_D5hhM6n7tC8PnX_El0'
+    const API_KEY = 'AIzaSyChrPf84Cnly-fHFBgoiokbfyKWOoNqgmI'
 
     const [messages, setMessages] = useState([
       {
@@ -226,8 +226,21 @@ const UserDashboard = () => {
     const [isTyping, setIsTyping] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
 
+    const sleep = (ms) => new Promise(res => setTimeout(res, ms))
+    const is429 = (status) => status === 429
+
     const sendMessage = async () => {
       if (!inputMessage.trim() || isLoading) return
+
+      if (!API_KEY) {
+        setMessages(prev => [...prev, {
+          id: Date.now(),
+          text: 'HealthBot is not configured. Please contact the administrator.',
+          isBot: true,
+          timestamp: new Date()
+        }])
+        return
+      }
 
       const userMessage = {
         id: Date.now(),
@@ -242,43 +255,27 @@ const UserDashboard = () => {
       setIsLoading(true)
 
       try {
-        // Check if the question is health/laboratory related
         const healthKeywords = [
           'health', 'medical', 'doctor', 'test', 'lab', 'laboratory', 'blood', 'urine', 'symptom', 'disease', 'condition', 'medicine', 'drug', 'treatment', 'diagnosis', 'result', 'report', 'checkup', 'examination', 'prescription', 'vitamin', 'supplement', 'exercise', 'diet', 'nutrition', 'wellness', 'fitness', 'pain', 'injury', 'illness', 'covid', 'vaccine', 'immunization', 'prevention', 'screening', 'biomarker', 'cholesterol', 'diabetes', 'blood pressure', 'heart', 'cancer', 'infection', 'allergy', 'asthma', 'mental health', 'stress', 'anxiety', 'depression'
         ]
-
         const userQuestion = inputMessage.toLowerCase()
         const isHealthRelated = healthKeywords.some(keyword => userQuestion.includes(keyword))
 
         if (!isHealthRelated) {
-          const redirectMessage = {
-            id: Date.now() + 1,
-            text: "I'm HealthBot, specialized in health and laboratory-related questions only. I can help you with:\n\n• Health questions and concerns\n• Laboratory test explanations\n• Health tips and wellness advice\n• Understanding medical reports\n• General health guidance\n\nPlease ask me something health-related, or visit the Support section for other assistance.",
-            isBot: true,
-            timestamp: new Date()
-          }
-
           setTimeout(() => {
-            setMessages(prev => [...prev, redirectMessage])
+            setMessages(prev => [...prev, {
+              id: Date.now() + 1,
+              text: "I'm HealthBot, specialized in health and laboratory-related questions only. I can help you with:\n\n• Health questions and concerns\n• Laboratory test explanations\n• Health tips and wellness advice\n• Understanding medical reports\n• General health guidance\n\nPlease ask me something health-related, or visit the Support section for other assistance.",
+              isBot: true,
+              timestamp: new Date()
+            }])
             setIsTyping(false)
             setIsLoading(false)
           }, 500)
           return
         }
 
-        // Call Google Gemini API
-        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-goog-api-key': API_KEY
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `You are HealthBot, a specialized AI health assistant for a laboratory management system. You ONLY respond to health, medical, and laboratory-related questions.
+        const prompt = `You are HealthBot, a specialized AI health assistant for a laboratory management system. You ONLY respond to health, medical, and laboratory-related questions.
 
 User context:
 - Patient: ${user?.firstName} ${user?.lastName}
@@ -287,60 +284,77 @@ User context:
 
 STRICT GUIDELINES:
 1. ONLY answer health, medical, laboratory, or wellness-related questions
-2. If asked about non-health topics, politely redirect to health topics
-3. Be friendly, empathetic, and professional
-4. Provide helpful health information and general guidance
-5. Always remind users to consult healthcare professionals for medical advice
-6. You can help explain lab test results if they provide them
-7. Keep responses concise but informative (2-4 sentences)
-8. Use simple, easy-to-understand language
-9. Do not provide specific medical diagnoses or treatment recommendations
-10. Always end with asking if they need help with any other health questions
+2. Be friendly, empathetic, and professional
+3. Always remind users to consult healthcare professionals for medical advice
+4. Keep responses concise but informative (2-4 sentences)
+5. Do not provide specific medical diagnoses or treatment recommendations
 
-User's health question: ${inputMessage}
+User's health question: ${inputMessage}`
 
-Remember: Only respond if this is health/medical/laboratory related. If not, politely redirect to health topics.`
-                  }
-                ]
-              }
-            ]
+        const MAX_RETRIES = 3
+        const RETRY_DELAYS = [4000, 8000, 16000]
+        let lastError = null
+        let botResponse = null
+
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-goog-api-key': API_KEY },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
           })
-        })
 
-        if (!response.ok) {
+          if (response.ok) {
+            const data = await response.json()
+            botResponse = data.candidates?.[0]?.content?.parts?.[0]?.text ||
+              "I apologize, but I'm having trouble processing your request right now. Please try again."
+            break
+          }
+
+          lastError = response.status
+          if (is429(response.status) && attempt < MAX_RETRIES) {
+            const waitSecs = RETRY_DELAYS[attempt - 1] / 1000
+            setMessages(prev => [...prev, {
+              id: Date.now() + attempt,
+              text: `⏳ Rate limit reached. Retrying in ${waitSecs} seconds... (${attempt}/${MAX_RETRIES})`,
+              isBot: true,
+              timestamp: new Date()
+            }])
+            await sleep(RETRY_DELAYS[attempt - 1])
+            // Remove the retry message
+            setMessages(prev => prev.filter(m => !m.text.startsWith('⏳ Rate limit')))
+            continue
+          }
           throw new Error(`API request failed: ${response.status}`)
         }
 
-        const data = await response.json()
-        const botResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "I apologize, but I'm having trouble processing your request right now. Please try again or consult with a healthcare professional."
-
-        const botMessage = {
-          id: Date.now() + 1,
-          text: botResponse,
-          isBot: true,
-          timestamp: new Date()
-        }
+        if (!botResponse) throw new Error(`API request failed: ${lastError}`)
 
         setTimeout(() => {
-          setMessages(prev => [...prev, botMessage])
+          setMessages(prev => [...prev, {
+            id: Date.now() + 1,
+            text: botResponse,
+            isBot: true,
+            timestamp: new Date()
+          }])
           setIsTyping(false)
           setIsLoading(false)
-        }, 1000)
+        }, 500)
 
       } catch (error) {
         console.error('HealthBot error:', error)
-        const errorMessage = {
-          id: Date.now() + 1,
-          text: "I'm sorry, I'm experiencing technical difficulties right now. Please try again later or consult with a healthcare professional for immediate assistance.",
-          isBot: true,
-          timestamp: new Date()
-        }
-
+        const is429Err = error?.message?.includes('429')
         setTimeout(() => {
-          setMessages(prev => [...prev, errorMessage])
+          setMessages(prev => [...prev, {
+            id: Date.now() + 1,
+            text: is429Err
+              ? '⚠️ The AI service is temporarily rate-limited. Please wait 1 minute and try again.'
+              : "I'm sorry, I'm experiencing technical difficulties right now. Please try again later.",
+            isBot: true,
+            timestamp: new Date()
+          }])
           setIsTyping(false)
           setIsLoading(false)
-        }, 1000)
+        }, 500)
       }
     }
 
@@ -505,7 +519,7 @@ Remember: Only respond if this is health/medical/laboratory related. If not, pol
           <Route path="reports" element={<DownloadReports />} />
           <Route path="profile" element={<Profile />} />
           <Route path="nearby-labs" element={<NearbyLabs />} />
-          <Route path="ppg-technology" element={<PPGTechnology />} />
+          {/* <Route path="ppg-technology" element={<PPGTechnology />} /> */}
           <Route path="healthbot" element={<HealthBot />} />
           <Route path="support" element={<Support />} />
           <Route path="*" element={<Navigate to="/user/dashboard" replace />} />

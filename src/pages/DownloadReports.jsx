@@ -27,8 +27,8 @@ const DownloadReports = () => {
   const [showAiModal, setShowAiModal] = useState(false)
   const [currentAiBookingId, setCurrentAiBookingId] = useState(null)
 
-  const API_KEY = 'AIzaSyAywhccPmyHxbbK_D5hhM6n7tC8PnX_El0'
-  const genAI = useMemo(() => new GoogleGenerativeAI(API_KEY), [])
+  const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''
+  const genAI = useMemo(() => API_KEY ? new GoogleGenerativeAI(API_KEY) : null, [API_KEY])
 
   const fetchBookings = useCallback(async () => {
     try {
@@ -104,8 +104,24 @@ const DownloadReports = () => {
   }
 
   const analyzeResultsWithAI = useCallback(async (booking) => {
+    if (!genAI) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'AI Not Configured',
+        html: 'Gemini API key is missing.<br><br>Add <code>VITE_GEMINI_API_KEY=your_key</code> to your <b>.env</b> file and restart the dev server.',
+        confirmButtonColor: '#2563eb'
+      })
+      return
+    }
+
+    const MAX_RETRIES = 3
+    const RETRY_DELAYS = [4000, 8000, 16000]
+    const sleep = (ms) => new Promise(res => setTimeout(res, ms))
+    const is429 = (err) => err?.status === 429 || err?.message?.includes('429') ||
+      err?.message?.toLowerCase().includes('quota') || err?.message?.toLowerCase().includes('rate')
+
+    setAnalyzing(prev => ({ ...prev, [booking._id]: true }))
     try {
-      setAnalyzing(prev => ({ ...prev, [booking._id]: true }))
       let analysisData = ''
       if (booking.testResults && booking.testResults.length > 0) {
         analysisData = 'Test Results:\n'
@@ -118,13 +134,50 @@ const DownloadReports = () => {
       const patientInfo = `Patient: ${booking.userId?.firstName} ${booking.userId?.lastName}\nAge: ${booking.userId?.age}\nGender: ${booking.userId?.gender}`
       const prompt = `As a high-end medical diagnostic AI, analyze these results. Structure into: 1. OVERVIEW, 2. KEY BIOMARKERS, 3. ACTIONABLE INSIGHTS, 4. LIFESTYLE PROTOCOLS. Be professional yet encouraging. Format: Clean text with Uppercase Section Titles. Patient: ${patientInfo}\n${analysisData}`
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
-      const result = await model.generateContent(prompt)
-      const analysis = (await result.response).text()
-      setAiAnalysis(prev => ({ ...prev, [booking._id]: analysis }))
-      setCurrentAiBookingId(booking._id); setShowAiModal(true)
+
+      let lastError = null
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const result = await model.generateContent(prompt)
+          const analysis = (await result.response).text()
+          setAiAnalysis(prev => ({ ...prev, [booking._id]: analysis }))
+          setCurrentAiBookingId(booking._id)
+          setShowAiModal(true)
+          return
+        } catch (err) {
+          lastError = err
+          if (is429(err) && attempt < MAX_RETRIES) {
+            const waitSecs = RETRY_DELAYS[attempt - 1] / 1000
+            Swal.fire({
+              icon: 'info',
+              title: `Rate Limit — Retrying (${attempt}/${MAX_RETRIES})`,
+              html: `Gemini API is busy. Retrying in <b>${waitSecs}s</b>...`,
+              timer: RETRY_DELAYS[attempt - 1],
+              timerProgressBar: true,
+              showConfirmButton: false,
+              allowOutsideClick: false,
+            })
+            await sleep(RETRY_DELAYS[attempt - 1])
+            Swal.close()
+            continue
+          }
+          throw err
+        }
+      }
+      throw lastError
     } catch (err) {
-      setAiAnalysis(prev => ({ ...prev, [booking._id]: 'Neural processing delay. Please re-initiate analysis sequence.' }))
-      setCurrentAiBookingId(booking._id); setShowAiModal(true)
+      if (is429(err)) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Rate Limit Exceeded',
+          html: 'The Gemini API free-tier limit has been reached.<br><br>Please wait <b>1 minute</b> and try again.',
+          confirmButtonColor: '#2563eb'
+        })
+      } else {
+        setAiAnalysis(prev => ({ ...prev, [booking._id]: 'Neural processing delay. Please re-initiate analysis sequence.' }))
+        setCurrentAiBookingId(booking._id)
+        setShowAiModal(true)
+      }
     } finally {
       setAnalyzing(prev => ({ ...prev, [booking._id]: false }))
     }

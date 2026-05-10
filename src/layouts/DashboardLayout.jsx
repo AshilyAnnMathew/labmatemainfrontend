@@ -97,7 +97,7 @@ const DashboardLayout = ({
         {/* Navigation */}
         <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto custom-scrollbar">
           <div className="px-4 mb-4 flex items-center justify-between">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.35em]">Clinical Node</span>
+            {/* <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.35em]">Clinical Node</span> */}
             <div className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse"></div>
           </div>
           {sidebarItems.map((item, index) => {
@@ -172,14 +172,14 @@ const DashboardLayout = ({
             </button>
 
             {/* Breadcrumbs / Page Title */}
-            <div className="flex flex-col">
+            {/* <div className="flex flex-col">
               <div className="flex items-center text-[10px] font-black text-slate-400 uppercase tracking-[0.35em]">
                 <span className="hover:text-slate-900 transition-colors cursor-pointer">Protocol</span>
                 <span className="mx-2 opacity-30">/</span>
                 <span className="text-slate-900">Node Sync</span>
               </div>
               <h1 className="text-2xl font-black text-slate-900 mt-0.5 uppercase tracking-tighter">{pageTitle}</h1>
-            </div>
+            </div> */}
           </div>
 
           <div className="flex items-center space-x-8">
@@ -261,7 +261,7 @@ const DashboardLayout = ({
                           className="w-full flex items-center space-x-4 px-6 py-4 text-[11px] font-black text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-2xl transition-all uppercase tracking-widest"
                         >
                           <User className="h-4 w-4" />
-                          <span>Medical Profile</span>
+                          <span>Profile</span>
                         </button>
 
                         <button
@@ -269,7 +269,7 @@ const DashboardLayout = ({
                           className="w-full flex items-center space-x-4 px-6 py-4 text-[11px] font-black text-rose-500 hover:bg-rose-50 rounded-2xl transition-all uppercase tracking-widest"
                         >
                           <LogOut className="h-4 w-4" />
-                          <span>Secure Termination</span>
+                          <span>Logout</span>
                         </button>
                       </div>
                     </motion.div>

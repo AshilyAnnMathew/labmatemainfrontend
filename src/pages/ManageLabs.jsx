@@ -216,7 +216,7 @@ const ManageLabs = () => {
               <Globe2 size={20} />
             </div>
             <div>
-              <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none mb-1">Active Nodes</p>
+              <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none mb-1">Active Labs</p>
               <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight">{labs.filter(l => l.isActive).length} / {labs.length}</p>
             </div>
           </div>
@@ -259,7 +259,7 @@ const ManageLabs = () => {
           className="px-10 py-6 bg-slate-900 text-white rounded-[2.5rem] shadow-2xl shadow-slate-100 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-4 group"
         >
           <Plus className="h-5 w-5 group-hover:rotate-90 transition-transform" />
-          <span className="text-[11px] font-black uppercase tracking-[0.3em]">Integrate Node</span>
+          <span className="text-[11px] font-black uppercase tracking-[0.3em]">Add New Lab</span>
         </button>
       </div>
 
@@ -355,10 +355,10 @@ const ManageLabs = () => {
               <div className="pt-8 border-t border-slate-50 flex items-center justify-between">
                 <div className="flex gap-3">
                   <div className="px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-widest">
-                    {lab.availableTests?.length || 0} Units
+                    {lab.availableTests?.length || 0} Tests
                   </div>
                   <div className="px-4 py-1.5 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest">
-                    {lab.availablePackages?.length || 0} Bundles
+                    {lab.availablePackages?.length || 0} Test Packages
                   </div>
                 </div>
                 <button
@@ -390,7 +390,7 @@ const ManageLabs = () => {
               <div className="p-10 lg:p-16 flex justify-between items-center shrink-0 border-b border-slate-50">
                 <div>
                   <h3 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-2">
-                    Node <span className="text-indigo-600">{showEditLabModal ? 'Calibration' : 'Integration'}</span>
+                    Lab <span className="text-indigo-600">{showEditLabModal ? 'Calibration' : 'Integration'}</span>
                   </h3>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Global Facility Parameters Matrix</p>
                 </div>
@@ -428,7 +428,7 @@ const ManageLabs = () => {
 
                     <div className="space-y-6">
                       <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Facility Name</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Laboratory Name</label>
                         <input
                           type="text"
                           value={newLab.name}
@@ -438,7 +438,7 @@ const ManageLabs = () => {
                         />
                       </div>
                       <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Node Description</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4"> Description</label>
                         <textarea
                           rows={3}
                           value={newLab.description}
@@ -449,10 +449,10 @@ const ManageLabs = () => {
                       </div>
                     </div>
 
-                    <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.4em] border-l-4 border-indigo-600 pl-4 pt-10">Geographical Vector</h5>
+                    <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.4em] border-l-4 border-indigo-600 pl-4 pt-10">Geographical Location</h5>
                     <div className="grid grid-cols-2 gap-6">
                       <div className="col-span-2 space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Street Vector</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Street Address</label>
                         <input
                           type="text"
                           value={newLab.address}
@@ -461,7 +461,7 @@ const ManageLabs = () => {
                         />
                       </div>
                       <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">City Node</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">City</label>
                         <input
                           type="text"
                           value={newLab.city}
@@ -470,7 +470,7 @@ const ManageLabs = () => {
                         />
                       </div>
                       <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">State Sector</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">State</label>
                         <input
                           type="text"
                           value={newLab.state}
@@ -505,10 +505,10 @@ const ManageLabs = () => {
 
                   {/* Technical Spectrum */}
                   <div className="space-y-10">
-                    <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.4em] border-l-4 border-indigo-600 pl-4">Communication Uplink</h5>
+                    <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.4em] border-l-4 border-indigo-600 pl-4">Communication</h5>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Phone Matrix</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Phone </label>
                         <input
                           type="text"
                           value={newLab.phone}
@@ -517,7 +517,7 @@ const ManageLabs = () => {
                         />
                       </div>
                       <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Email Protocol</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Email </label>
                         <input
                           type="email"
                           value={newLab.email}
@@ -527,10 +527,10 @@ const ManageLabs = () => {
                       </div>
                     </div>
 
-                    <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.4em] border-l-4 border-indigo-600 pl-4 pt-10">Operational Cycles</h5>
+                    <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.4em] border-l-4 border-indigo-600 pl-4 pt-10">Time Cycle</h5>
                     <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Cycle Initiation</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Opening time</label>
                         <input
                           type="time"
                           value={newLab.operatingHours.start}
@@ -539,7 +539,7 @@ const ManageLabs = () => {
                         />
                       </div>
                       <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Cycle Termination</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Closing time</label>
                         <input
                           type="time"
                           value={newLab.operatingHours.end}
@@ -573,7 +573,7 @@ const ManageLabs = () => {
                         </div>
                       </div>
                       <div className="space-y-4">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Integrated Test Bundles</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Integrated Test Packages</label>
                         <div className="h-48 overflow-y-auto bg-slate-50 rounded-[1.5rem] p-6 space-y-2 shadow-inner border border-slate-100">
                           {packages.map(pkg => (
                             <label key={pkg._id} className="flex items-center gap-4 p-3 bg-white rounded-xl cursor-pointer hover:bg-emerald-50 transition-colors group">
@@ -601,7 +601,7 @@ const ManageLabs = () => {
                           <Activity size={24} />
                         </div>
                         <div>
-                          <h5 className="text-sm font-black uppercase tracking-tight mb-1">Network Presence</h5>
+                          <h5 className="text-sm font-black uppercase tracking-tight mb-1">Status</h5>
                           <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Global Node Visibility Status</p>
                         </div>
                       </div>
@@ -621,7 +621,7 @@ const ManageLabs = () => {
                   onClick={() => { setShowAddLabModal(false); setShowEditLabModal(false); }}
                   className="px-10 py-5 bg-white border border-slate-100 text-slate-400 text-[11px] font-black uppercase tracking-[0.3em] rounded-[1.5rem] hover:bg-slate-900 hover:text-white transition-all shadow-sm"
                 >
-                  Abort Sequence
+                  Cancel
                 </button>
                 <button
                   onClick={() => handleAction(showEditLabModal)}
@@ -629,7 +629,7 @@ const ManageLabs = () => {
                   className="px-12 py-5 bg-slate-900 text-white text-[11px] font-black uppercase tracking-[0.4em] rounded-[1.5rem] shadow-2xl shadow-slate-200 hover:scale-[1.05] active:scale-95 transition-all flex items-center gap-4"
                 >
                   {loading ? <Loader className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                  {showEditLabModal ? 'Commit Calibration' : 'Initialize Node'}
+                  {showEditLabModal ? 'Save' : 'Initialize Node'}
                 </button>
               </div>
             </motion.div>

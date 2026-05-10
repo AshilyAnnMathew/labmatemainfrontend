@@ -126,11 +126,11 @@ const HealthInsights = () => {
                         <Brain className="h-4 w-4 text-purple-600" />
                         <span className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Advanced Intelligence Engine</span>
                     </div>
-                    <h1 className="text-4xl lg:text-5xl font-black text-gray-900 tracking-tighter uppercase underline decoration-purple-100 decoration-8 underline-offset-8">Neural Insights</h1>
+                    <h1 className="text-4xl lg:text-5xl font-black text-gray-900 tracking-tighter uppercase underline decoration-purple-100 decoration-8 underline-offset-8">Health Insights</h1>
                     <p className="text-gray-400 font-bold mt-4 uppercase tracking-[0.2em] text-[11px]">Real-time risk assessment via clinical biometric analysis</p>
                 </div>
                 <button onClick={fetchData} className="flex items-center px-8 py-4 bg-white border border-gray-100 text-gray-900 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all shadow-xl shadow-indigo-900/5">
-                    <RefreshCw className="w-4 h-4 mr-3 text-purple-600" /> Sync Intelligence
+                    <RefreshCw className="w-4 h-4 mr-3 text-purple-600" /> Refresh
                 </button>
             </div>
 

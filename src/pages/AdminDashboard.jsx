@@ -27,13 +27,13 @@ const { testAPI, packageAPI, staffAPI } = api;
 
 const AdminDashboard = () => {
   const sidebarItems = [
-    { path: '/admin/dashboard', label: 'Neural Overview', icon: LayoutDashboard },
-    { path: '/admin/dashboard/tests', label: 'Diagnostic Units', icon: TestTube },
-    { path: '/admin/dashboard/labs', label: 'Facility Network', icon: Building2 },
-    { path: '/admin/dashboard/users', label: 'Human Assets', icon: Users },
-    { path: '/admin/dashboard/bookings', label: 'Logistics Ledger', icon: Calendar },
+    { path: '/admin/dashboard', label: 'Dashboard Overview', icon: LayoutDashboard },
+    { path: '/admin/dashboard/tests', label: 'Tests Units', icon: TestTube },
+    { path: '/admin/dashboard/labs', label: 'Available Labs', icon: Building2 },
+    { path: '/admin/dashboard/users', label: 'Users', icon: Users },
+    { path: '/admin/dashboard/bookings', label: 'Bookings Management', icon: Calendar },
     { path: '/admin/dashboard/reports', label: 'Analytical Flow', icon: BarChart3 },
-    { path: '/admin/dashboard/settings', label: 'Core Parameters', icon: SettingsIcon }
+    { path: '/admin/dashboard/settings', label: 'Settings', icon: SettingsIcon }
   ];
 
   // --- Sub-component: Manage Tests & Packages (Refactored) ---
@@ -230,8 +230,8 @@ const AdminDashboard = () => {
           <div className="flex items-center gap-5">
             <div className="bg-slate-50 p-1.5 rounded-[2rem] border border-slate-100 flex shadow-inner">
               {[
-                { id: 'tests', icon: TestTube, label: 'Units' },
-                { id: 'packages', icon: Boxes, label: 'Bundles' }
+                { id: 'tests', icon: TestTube, label: 'Tests' },
+                { id: 'packages', icon: Boxes, label: 'Packages' }
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -288,7 +288,7 @@ const AdminDashboard = () => {
             className="px-10 py-6 bg-slate-900 text-white rounded-[2.5rem] shadow-2xl shadow-slate-100 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-4 group"
           >
             <Plus className="h-5 w-5 group-hover:rotate-90 transition-transform" />
-            <span className="text-[11px] font-black uppercase tracking-[0.3em]">Integrate Asset</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.3em]">Add New Test</span>
           </button>
         </div>
 
@@ -423,7 +423,7 @@ const AdminDashboard = () => {
                         ) : (
                           <div className="flex flex-col items-center gap-4 text-slate-300">
                             <Camera size={48} strokeWidth={1} />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Asset Visual Capture</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest"> Capture/Uploade Image here</span>
                           </div>
                         )}
                         <input type="file" onChange={(e) => handleImageUpload(e, 'test')} className="absolute inset-0 opacity-0 cursor-pointer" />
@@ -434,9 +434,19 @@ const AdminDashboard = () => {
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Unit Identity</label>
                           <input
                             type="text" value={newTest.name} onChange={(e) => setNewTest({ ...newTest, name: e.target.value })}
-                            className="w-full px-8 py-5 bg-slate-50 rounded-[1.5rem] font-bold shadow-inner border-none focus:ring-4 focus:ring-slate-900/5 transition-all text-sm"
+                            className={`w-full px-8 py-5 bg-slate-50 rounded-[1.5rem] font-bold shadow-inner border-none focus:ring-4 focus:ring-slate-900/5 transition-all text-sm ${fieldErrors.name ? 'ring-2 ring-rose-400' : ''}`}
                             placeholder="TEST NAME"
                           />
+                          {fieldErrors.name && <p className="text-rose-500 text-[10px] font-bold px-4">{fieldErrors.name}</p>}
+                        </div>
+                        <div className="space-y-3">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Description</label>
+                          <textarea
+                            rows={3} value={newTest.description} onChange={(e) => setNewTest({ ...newTest, description: e.target.value })}
+                            className={`w-full px-8 py-5 bg-slate-50 rounded-[1.5rem] font-bold shadow-inner border-none text-xs resize-none focus:ring-4 focus:ring-slate-900/5 transition-all ${fieldErrors.description ? 'ring-2 ring-rose-400' : ''}`}
+                            placeholder="Brief description of this test..."
+                          />
+                          {fieldErrors.description && <p className="text-rose-500 text-[10px] font-bold px-4">{fieldErrors.description}</p>}
                         </div>
                         <div className="space-y-3">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Catalog Category</label>
@@ -456,15 +466,17 @@ const AdminDashboard = () => {
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Pricing Pulse</label>
                             <input
                               type="number" value={newTest.price} onChange={(e) => setNewTest({ ...newTest, price: e.target.value })}
-                              className="w-full px-8 py-5 bg-slate-50 rounded-[1.5rem] font-bold shadow-inner border-none text-sm" placeholder="₹"
+                              className={`w-full px-8 py-5 bg-slate-50 rounded-[1.5rem] font-bold shadow-inner border-none text-sm ${fieldErrors.price ? 'ring-2 ring-rose-400' : ''}`} placeholder="₹"
                             />
+                            {fieldErrors.price && <p className="text-rose-500 text-[10px] font-bold px-4">{fieldErrors.price}</p>}
                           </div>
                           <div className="space-y-3">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Temporal Cycle</label>
                             <input
                               type="text" value={newTest.duration} onChange={(e) => setNewTest({ ...newTest, duration: e.target.value })}
-                              className="w-full px-8 py-5 bg-slate-50 rounded-[1.5rem] font-bold shadow-inner border-none text-sm" placeholder="e.g. 24H"
+                              className={`w-full px-8 py-5 bg-slate-50 rounded-[1.5rem] font-bold shadow-inner border-none text-sm ${fieldErrors.duration ? 'ring-2 ring-rose-400' : ''}`} placeholder="e.g. 24H"
                             />
+                            {fieldErrors.duration && <p className="text-rose-500 text-[10px] font-bold px-4">{fieldErrors.duration}</p>}
                           </div>
                         </div>
                       </div>
@@ -489,7 +501,7 @@ const AdminDashboard = () => {
                             </div>
                           ))}
                           <button onClick={addResultField} className="w-full py-6 border-2 border-dashed border-slate-200 rounded-[2rem] text-[10px] font-black uppercase tracking-widest text-slate-400 hover:border-slate-400 hover:text-slate-600 transition-all flex items-center justify-center gap-3">
-                            <Plus size={14} /> Add Parameter Node
+                            <Plus size={14} /> Add Parameter
                           </button>
                         </div>
                       </div>
@@ -506,12 +518,20 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="p-10 lg:p-16 border-t border-slate-50 bg-slate-50/50 flex justify-end shrink-0 gap-6">
-                  <button onClick={() => { setShowAddTestModal(false); setShowEditTestModal(false); }} className="px-10 py-5 bg-white border border-slate-100 text-slate-400 text-[11px] font-black uppercase tracking-[0.3em] rounded-[1.5rem] hover:bg-slate-900 transition-all">Abort Sequence</button>
-                  <button onClick={() => handleAction('test', showEditTestModal)} className="px-12 py-5 bg-slate-900 text-white text-[11px] font-black uppercase tracking-[0.4em] rounded-[1.5rem] shadow-2xl flex items-center gap-4 transition-all">
-                    {loading ? <Loader className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                    Sync Unit
-                  </button>
+                <div className="p-10 lg:p-16 border-t border-slate-50 bg-slate-50/50 shrink-0">
+                  {error && (
+                    <div className="mb-4 px-6 py-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3">
+                      <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                      <p className="text-rose-600 text-[11px] font-bold">{error}</p>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-6">
+                    <button onClick={() => { setShowAddTestModal(false); setShowEditTestModal(false); setError(''); setFieldErrors({}); }} className="px-10 py-5 bg-white border border-slate-100 text-slate-400 text-[11px] font-black uppercase tracking-[0.3em] rounded-[1.5rem] hover:bg-slate-900 transition-all">Cancel</button>
+                    <button onClick={() => handleAction('test', showEditTestModal)} disabled={loading} className="px-12 py-5 bg-slate-900 text-white text-[11px] font-black uppercase tracking-[0.4em] rounded-[1.5rem] shadow-2xl flex items-center gap-4 transition-all disabled:opacity-60 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-95">
+                      {loading ? <Loader className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                      {showEditTestModal ? 'Update Test' : 'Create Test'}
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             </div>
@@ -629,10 +649,10 @@ const AdminDashboard = () => {
                 </div>
 
                 <div className="p-10 lg:p-16 border-t border-white/5 bg-white/5 flex justify-end shrink-0 gap-6">
-                  <button onClick={() => { setShowAddPackageModal(false); setShowEditPackageModal(false); }} className="px-10 py-5 bg-white/5 border border-white/10 text-white/40 text-[11px] font-black uppercase tracking-[0.3em] rounded-[1.5rem] hover:bg-white hover:text-slate-900 transition-all font-bold">Abort Sequence</button>
+                  <button onClick={() => { setShowAddPackageModal(false); setShowEditPackageModal(false); }} className="px-10 py-5 bg-white/5 border border-white/10 text-white/40 text-[11px] font-black uppercase tracking-[0.3em] rounded-[1.5rem] hover:bg-white hover:text-slate-900 transition-all font-bold">Cancel</button>
                   <button onClick={() => handleAction('package', showEditPackageModal)} className="px-12 py-5 bg-indigo-600 text-white text-[11px] font-black uppercase tracking-[0.4em] rounded-[1.5rem] shadow-2xl shadow-indigo-500/20 flex items-center gap-4 transition-all hover:scale-[1.05] active:scale-95 font-bold">
                     {loading ? <Loader className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                    Sync Protocol
+                    Create Test
                   </button>
                 </div>
               </motion.div>

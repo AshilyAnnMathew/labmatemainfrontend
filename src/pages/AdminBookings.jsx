@@ -193,7 +193,7 @@ const AdminBookings = () => {
             <thead>
               <tr className="bg-slate-50/50 text-slate-300 font-bold">
                 <th className="px-10 py-8 text-left text-[10px] font-black uppercase tracking-[0.2em]">Clinical Subject</th>
-                <th className="px-10 py-8 text-left text-[10px] font-black uppercase tracking-[0.2em]">Temporal Node</th>
+                <th className="px-10 py-8 text-left text-[10px] font-black uppercase tracking-[0.2em]">Temporal lab</th>
                 <th className="px-10 py-8 text-left text-[10px] font-black uppercase tracking-[0.2em]">Assets</th>
                 <th className="px-10 py-8 text-left text-[10px] font-black uppercase tracking-[0.2em]">Transaction</th>
                 <th className="px-10 py-8 text-left text-[10px] font-black uppercase tracking-[0.2em]">Status</th>
@@ -247,12 +247,12 @@ const AdminBookings = () => {
                         <div className="flex flex-wrap gap-2">
                           {(booking.selectedTests?.length || 0) > 0 && (
                             <div className="px-3 py-1 bg-white border border-slate-100 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-500 shadow-sm">
-                              {booking.selectedTests.length} Units
+                              {booking.selectedTests.length} Tests
                             </div>
                           )}
                           {(booking.selectedPackages?.length || 0) > 0 && (
                             <div className="px-3 py-1 bg-indigo-50 rounded-lg text-[9px] font-black uppercase tracking-widest text-indigo-600 shadow-sm">
-                              {booking.selectedPackages.length} Bundles
+                              {booking.selectedPackages.length} Packages
                             </div>
                           )}
                         </div>
